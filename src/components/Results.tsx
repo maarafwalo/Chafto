@@ -46,7 +46,7 @@ export function Results({
           <p className="lede">
             {mission.variant === 'challenge'
               ? 'No instructions, no highlight, and you still got there. That is the whole point of the product.'
-              : 'You did not read about an AI workflow. You ran one.'}
+              : (mission.outro?.lede ?? 'You did not read about an AI workflow. You ran one.')}
           </p>
         </header>
 

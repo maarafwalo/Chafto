@@ -2,6 +2,7 @@ import { useLayoutEffect, useRef, useState, type ReactNode } from 'react';
 import type { DeviceMode, SimEvent, SimState } from '../../engine/types';
 import { Conversation } from './Conversation';
 import { AuthSheet, CatalogSheet, ConnectorDetail, ConnectorsScreen } from './Connectors';
+import { BriefScreen, ContextScreen } from './Brief';
 import { connectorById } from '../../data/connectors';
 
 const SCREEN_TITLES: Record<SimState['screen'], string> = {
@@ -10,6 +11,8 @@ const SCREEN_TITLES: Record<SimState['screen'], string> = {
   'connector-detail': 'Connector',
   files: 'Files',
   settings: 'Settings',
+  brief: 'Campaign brief',
+  context: 'Context',
 };
 
 /* ------------------------------------------------------------------ */
@@ -272,6 +275,8 @@ function ScreenBody({
       <div className="sim-scroll scroll">
         {sim.screen === 'connectors' && <ConnectorsScreen sim={sim} emit={emit} />}
         {sim.screen === 'connector-detail' && <ConnectorDetail sim={sim} emit={emit} />}
+        {sim.screen === 'brief' && <BriefScreen sim={sim} emit={emit} />}
+        {sim.screen === 'context' && <ContextScreen sim={sim} emit={emit} />}
         {sim.screen === 'files' && <FilesScreen sim={sim} emit={emit} />}
         {sim.screen === 'settings' && <SettingsScreen sim={sim} emit={emit} />}
       </div>
@@ -342,12 +347,38 @@ function Sheets({ sim, emit }: { sim: SimState; emit: (e: SimEvent) => void }) {
 /* Shells                                                              */
 /* ------------------------------------------------------------------ */
 
-const NAV = [
-  { screen: 'chat' as const, label: 'Chat', glyph: '✳', id: 'nav-chat' },
-  { screen: 'files' as const, label: 'Files', glyph: '▤', id: 'nav-files' },
-  { screen: 'connectors' as const, label: 'Connectors', glyph: '⇄', id: 'nav-connectors' },
-  { screen: 'settings' as const, label: 'Settings', glyph: '⚙', id: 'nav-settings' },
-];
+interface NavItem {
+  screen: SimState['screen'];
+  label: string;
+  glyph: string;
+  id: string;
+}
+
+const ALL_NAV: Record<string, NavItem> = {
+  chat: { screen: 'chat', label: 'Chat', glyph: '✳', id: 'nav-chat' },
+  brief: { screen: 'brief', label: 'Brief', glyph: '☰', id: 'nav-brief' },
+  context: { screen: 'context', label: 'Context', glyph: '◨', id: 'nav-context' },
+  files: { screen: 'files', label: 'Files', glyph: '▤', id: 'nav-files' },
+  connectors: { screen: 'connectors', label: 'Connectors', glyph: '⇄', id: 'nav-connectors' },
+  settings: { screen: 'settings', label: 'Settings', glyph: '⚙', id: 'nav-settings' },
+};
+
+/**
+ * Navigation follows the mission. A mission that never builds a brief does not
+ * get a Brief tab — the simulated app only shows what is actually in play, the
+ * way a real product would for a workspace with nothing in it.
+ */
+function navFor(sim: SimState, device: DeviceMode): NavItem[] {
+  const deep = sim.brief.length > 0 || sim.context.length > 0;
+  const keys = deep
+    ? device === 'phone'
+      ? ['chat', 'brief', 'context', 'connectors']
+      : ['chat', 'brief', 'context', 'files', 'connectors', 'settings']
+    : device === 'phone'
+      ? ['chat', 'files', 'connectors', 'settings']
+      : ['chat', 'files', 'connectors', 'settings'];
+  return keys.map((k) => ALL_NAV[k]);
+}
 
 interface ShellProps {
   sim: SimState;
@@ -357,6 +388,7 @@ interface ShellProps {
 
 function DesktopShell({ sim, emit, setComposer }: ShellProps) {
   const connectedCount = Object.values(sim.connectorStatus).filter((s) => s === 'connected').length;
+  const nav = navFor(sim, 'desktop');
   return (
     <div className="dsk">
       <div className="dsk-outer">
@@ -379,7 +411,7 @@ function DesktopShell({ sim, emit, setComposer }: ShellProps) {
                 <span className="sim-brand-sub">Simulated</span>
               </span>
             </div>
-            {NAV.map((n) => (
+            {nav.map((n) => (
               <button
                 key={n.id}
                 className="rail-item"
@@ -436,6 +468,7 @@ function DesktopShell({ sim, emit, setComposer }: ShellProps) {
 }
 
 function PhoneShell({ sim, emit, setComposer }: ShellProps) {
+  const nav = navFor(sim, 'phone');
   return (
     <div className="phone">
       <div className="phone-pill" />
@@ -471,7 +504,7 @@ function PhoneShell({ sim, emit, setComposer }: ShellProps) {
         </header>
         <ScreenBody sim={sim} emit={emit} setComposer={setComposer} device="phone" />
         <nav className="ph-tabs">
-          {NAV.map((n) => (
+          {nav.map((n) => (
             <button
               key={n.id}
               className="ph-tab"

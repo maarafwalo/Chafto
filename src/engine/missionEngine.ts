@@ -93,9 +93,16 @@ export function useMissionEngine(
   const [elapsed, setElapsed] = useState(0);
 
   const timers = useRef<number[]>([]);
+  /**
+   * The pending auto-advance is tracked apart from the scenario timers. Pressing
+   * Continue must cancel the advance without killing a simulation sequence that
+   * is still playing out — otherwise a fast learner freezes a tool call mid-run.
+   */
+  const advanceTimer = useRef(0);
   const clearTimers = useCallback(() => {
     timers.current.forEach((t) => window.clearTimeout(t));
     timers.current = [];
+    window.clearTimeout(advanceTimer.current);
   }, []);
   useEffect(() => clearTimers, [clearTimers]);
 
@@ -191,9 +198,12 @@ export function useMissionEngine(
         awaitingContinue: current.advance === 'manual',
         demo: null,
       }));
-      if (current.advance !== 'manual') later(advance, AUTO_ADVANCE_MS);
+      if (current.advance !== 'manual') {
+        window.clearTimeout(advanceTimer.current);
+        advanceTimer.current = window.setTimeout(advance, AUTO_ADVANCE_MS);
+      }
     },
-    [engine.records, learningMode, runBeats, later, advance],
+    [engine.records, learningMode, runBeats, advance],
   );
 
   const registerWrong = useCallback(
@@ -220,15 +230,16 @@ export function useMissionEngine(
       if (!current || engine.status !== 'running' || engine.awaitingContinue) return;
       if (engine.records[current.id]?.completed) return;
 
-      // 2. Stepping stones on the way to the target are neither right nor wrong.
-      //    They may still script a reaction (rejecting an approval, for example).
-      const allowed = current.allow?.find((rule) => eventMatches(rule, event));
-      if (allowed) {
-        runBeats(allowed.then);
-        return;
-      }
-
+      // 2. The expectation is checked first, so a broad `allow` rule can say
+      //    "poking around in here is fine" without ever masking the real answer.
       if (!eventMatches(current.expect, event)) {
+        // Stepping stones toward the target are neither right nor wrong. They
+        // may still script a reaction (rejecting an approval, for example).
+        const allowed = current.allow?.find((rule) => eventMatches(rule, event));
+        if (allowed) {
+          runBeats(allowed.then);
+          return;
+        }
         // Only interactions that could plausibly have been the answer count as
         // mistakes — idle navigation inside an already-correct screen does not.
         if (event.type === 'open-sheet' || event.type === 'close-sheet') return;
@@ -310,12 +321,12 @@ export function useMissionEngine(
   const continueStep = useCallback(() => {
     if (!step) return;
     if (engine.awaitingContinue || engine.records[step.id]?.completed) {
-      clearTimers();
+      window.clearTimeout(advanceTimer.current);
       advance();
       return;
     }
     if (step.actionType === 'observe') emit({ type: 'acknowledge', payload: { stepId: step.id } });
-  }, [step, engine.awaitingContinue, engine.records, advance, emit, clearTimers]);
+  }, [step, engine.awaitingContinue, engine.records, advance, emit]);
 
   const setComposer = useCallback((text: string) => dispatchSim({ type: 'COMPOSER', text }), []);
 

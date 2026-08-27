@@ -92,9 +92,87 @@ const requestDraft: Evaluator = (raw) => {
   };
 };
 
+/**
+ * Mission 02 step 2. A brief good enough to execute names three things: the
+ * outcome, at least one hard constraint, and what it wants back. Missing any of
+ * them is how you get a confident answer to a question you did not ask.
+ */
+const campaignBrief: Evaluator = (raw) => {
+  const text = raw.toLowerCase().trim();
+
+  const outcome = has(text, [
+    'sale', 'purchase', 'conversion', 'revenue', 'sign up', 'signup', 'lead',
+    'install', 'subscriber', 'booking', 'trial', 'customer', 'roas', 'sell',
+  ]);
+  const constraint = has(text, [
+    'budget', '$', '£', '€', 'per day', '/day', 'week', 'month', 'cpa', 'target',
+    'no more than', 'under', 'max', 'limit', 'by ', 'within', 'spend',
+  ]);
+  const deliverable = has(text, [
+    'plan', 'brief', 'draft', 'set up', 'setup', 'build', 'structure', 'every setting',
+    'full', 'complete', 'end to end', 'campaign', 'spec', 'recommend', 'checklist',
+  ]);
+  const words = text.split(/\s+/).filter(Boolean).length;
+  const longEnough = words >= 8;
+
+  const rubric = [
+    { label: 'Names the outcome you are buying', met: outcome },
+    { label: 'Gives at least one hard constraint', met: constraint },
+    { label: 'Says what you want back', met: deliverable },
+    { label: 'Long enough to be a brief', met: longEnough },
+  ];
+  const met = rubric.filter((r) => r.met).length;
+  const ok = outcome && deliverable && longEnough;
+
+  let hint = 'A brief needs three things: the outcome, a constraint, and what you want back.';
+  if (!longEnough) hint = 'Too short to act on. Write it the way you would brief a freelancer who has never met your business.';
+  else if (!outcome) hint = 'What are you actually buying — sales, leads, sign-ups? Name the outcome, not just "results".';
+  else if (!deliverable) hint = 'Say what you want handed back: a full campaign plan, a draft, a set of settings.';
+
+  return {
+    ok,
+    score: met / rubric.length,
+    hint,
+    praise: constraint
+      ? 'That is a brief: outcome, constraint, and a deliverable. Claude now has something to be wrong about specifically, which is what lets you correct it.'
+      : 'Good — outcome and deliverable are clear. Adding a hard constraint (budget, target CPA, deadline) would stop the assistant guessing one for you.',
+    rubric,
+  };
+};
+
+/**
+ * Mission 02 step 8. Tracking is the detail people skip and then cannot answer
+ * "did it work?". Accepts any sane UTM string.
+ */
+const trackingPlan: Evaluator = (raw) => {
+  const text = raw.toLowerCase();
+  const source = /utm_source\s*=\s*\S+/.test(text) || /\bsource\s*=\s*\S+/.test(text);
+  const medium = /utm_medium\s*=\s*\S+/.test(text) || /\bmedium\s*=\s*\S+/.test(text);
+  const campaign = /utm_campaign\s*=\s*\S+/.test(text) || /\bcampaign\s*=\s*\S+/.test(text);
+  const rubric = [
+    { label: 'utm_source — which platform sent the click', met: source },
+    { label: 'utm_medium — what kind of traffic it is', met: medium },
+    { label: 'utm_campaign — which campaign to credit', met: campaign },
+  ];
+  const met = rubric.filter((r) => r.met).length;
+  const missing = rubric.filter((r) => !r.met).map((r) => r.label.split(' —')[0]);
+  return {
+    ok: source && medium && campaign,
+    score: met / rubric.length,
+    hint: missing.length
+      ? `Still missing ${missing.join(', ')}. Write them as key=value pairs joined by &.`
+      : 'Write the three UTM parameters as key=value pairs.',
+    praise:
+      'Source, medium and campaign — that is the minimum that lets analytics credit this campaign instead of dumping it into "direct".',
+    rubric,
+  };
+};
+
 const registry: Record<string, Evaluator> = {
   analyzeCampaigns,
   requestDraft,
+  campaignBrief,
+  trackingPlan,
 };
 
 export const getEvaluator = (id: string | undefined): Evaluator | null =>

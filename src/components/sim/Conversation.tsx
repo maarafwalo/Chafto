@@ -1,5 +1,5 @@
 import { useEffect, useRef } from 'react';
-import type { SimEvent, SimMessage, SimState, ToolResult } from '../../engine/types';
+import type { ReviewItem, SimEvent, SimMessage, SimState, ToolResult } from '../../engine/types';
 
 /* ------------------------------------------------------------------ */
 /* Tool call — the centrepiece of the simulation. Collapsed by default */
@@ -110,6 +110,134 @@ function ToolCall({
           )}
         </div>
       )}
+    </div>
+  );
+}
+
+/* ------------------------------------------------------------------ */
+/* Clarifying question — the model interrogating the requirement        */
+/* ------------------------------------------------------------------ */
+
+function Question({
+  message,
+  emit,
+}: {
+  message: Extract<SimMessage, { kind: 'question' }>;
+  emit: (e: SimEvent) => void;
+}) {
+  const chosen = message.options.find((o) => o.id === message.answered);
+  return (
+    <div className="ask" data-sim-id={`question-${message.id}`}>
+      <div className="ask-head">
+        <span className="ask-tag">NEEDS YOUR DECISION</span>
+      </div>
+      <p className="ask-prompt">{message.prompt}</p>
+      {message.note && <p className="ask-note">{message.note}</p>}
+      <div className="ask-options">
+        {message.options.map((o) => (
+          <button
+            key={o.id}
+            className="ask-option"
+            data-state={message.answered === o.id ? 'picked' : message.answered ? 'dim' : 'idle'}
+            data-sim-id={`answer-${message.id}-${o.id}`}
+            onClick={() =>
+              emit({ type: 'answer-question', payload: { questionId: message.id, optionId: o.id } })
+            }
+          >
+            <span className="ask-option-label">{o.label}</span>
+            <span className="ask-option-detail">{o.detail}</span>
+          </button>
+        ))}
+      </div>
+      {chosen && (
+        <p className="ask-answered">
+          <span aria-hidden>✓</span> Recorded: {chosen.label}
+        </p>
+      )}
+    </div>
+  );
+}
+
+/* ------------------------------------------------------------------ */
+/* Review block — approve or flag each line on its merits              */
+/* ------------------------------------------------------------------ */
+
+function ReviewRow({
+  item,
+  messageId,
+  mode,
+  emit,
+}: {
+  item: ReviewItem;
+  messageId: string;
+  mode: 'variants' | 'checklist';
+  emit: (e: SimEvent) => void;
+}) {
+  const decided = item.verdict !== 'none';
+  // Reveal the reasoning only once the learner has judged it correctly —
+  // otherwise the block would hand them the answer they are here to find.
+  const correct = decided && (item.verdict === 'ok') === item.sound;
+  return (
+    <div className="rev-row" data-verdict={item.verdict} data-correct={correct}>
+      <div className="rev-main">
+        <span className="rev-label">{item.label}</span>
+        <span className="rev-detail">{item.detail}</span>
+        {decided && (
+          <span className="rev-note">
+            {correct
+              ? `${item.sound ? '✓' : '⚑'} ${item.sound ? item.okNote : item.flagNote}`
+              : 'Logged. Worth another look before you sign this off.'}
+          </span>
+        )}
+      </div>
+      <div className="rev-actions">
+        <button
+          className="rev-btn rev-ok"
+          aria-pressed={item.verdict === 'ok'}
+          data-sim-id={`review-${item.id}-ok`}
+          onClick={() =>
+            emit({ type: 'review-item', payload: { messageId, itemId: item.id, verdict: 'ok' } })
+          }
+        >
+          {mode === 'checklist' ? 'Verified' : 'Keep'}
+        </button>
+        <button
+          className="rev-btn rev-flag"
+          aria-pressed={item.verdict === 'flag'}
+          data-sim-id={`review-${item.id}-flag`}
+          onClick={() =>
+            emit({ type: 'review-item', payload: { messageId, itemId: item.id, verdict: 'flag' } })
+          }
+        >
+          Flag
+        </button>
+      </div>
+    </div>
+  );
+}
+
+function Review({
+  message,
+  emit,
+}: {
+  message: Extract<SimMessage, { kind: 'review' }>;
+  emit: (e: SimEvent) => void;
+}) {
+  const decided = message.items.filter((i) => i.verdict !== 'none').length;
+  return (
+    <div className="rev" data-sim-id={`review-${message.id}`}>
+      <div className="rev-head">
+        <span className="rev-title">{message.title}</span>
+        <span className="pill">
+          {decided}/{message.items.length} reviewed
+        </span>
+      </div>
+      <p className="rev-intro">{message.intro}</p>
+      <div className="rev-list">
+        {message.items.map((i) => (
+          <ReviewRow key={i.id} item={i} messageId={message.id} mode={message.mode} emit={emit} />
+        ))}
+      </div>
     </div>
   );
 }
@@ -232,6 +360,8 @@ export function Conversation({
                   onToggle={() => emit({ type: 'inspect-tool-call', payload: { id: m.id } })}
                 />
               )}
+              {m.kind === 'question' && <Question message={m} emit={emit} />}
+              {m.kind === 'review' && <Review message={m} emit={emit} />}
               {m.kind === 'approval' && <Approval message={m} emit={emit} />}
             </div>
           </div>

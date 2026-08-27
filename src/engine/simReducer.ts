@@ -1,4 +1,5 @@
 import type {
+  BriefField,
   ConnectorStatus,
   SimAction,
   SimContext,
@@ -39,6 +40,9 @@ export const initialSimState = (): SimState => ({
   suggestions: [],
   toast: null,
   files: [],
+  brief: [],
+  context: [],
+  openField: null,
 });
 
 export function simReducer(state: SimState, action: SimAction): SimState {
@@ -81,6 +85,51 @@ export function simReducer(state: SimState, action: SimAction): SimState {
       return { ...state, toast: action.toast };
     case 'ATTACH_FILE':
       return { ...state, files: [...state.files, action.file] };
+    case 'SET_BRIEF':
+      return {
+        ...state,
+        brief: state.brief.map((f) => (f.id === action.id ? { ...f, ...action.patch } : f)),
+      };
+    case 'ADD_CONTEXT':
+      return {
+        ...state,
+        context: state.context.map((c) => (c.id === action.id ? { ...c, added: true } : c)),
+      };
+    case 'OPEN_FIELD':
+      return { ...state, openField: action.id };
+    case 'ANSWER_QUESTION': {
+      const question = state.messages.find((m) => m.id === action.id);
+      const writes =
+        question?.kind === 'question'
+          ? (question.options.find((o) => o.id === action.optionId)?.writes ?? [])
+          : [];
+      return {
+        ...state,
+        messages: state.messages.map((m) =>
+          m.id === action.id && m.kind === 'question' ? { ...m, answered: action.optionId } : m,
+        ),
+        // The answer decides the brief line, so the specification reflects what
+        // this learner actually chose.
+        brief: state.brief.map((f) => {
+          const w = writes.find((x) => x.id === f.id);
+          return w ? { ...f, value: w.value, status: w.status, source: w.source ?? f.source } : f;
+        }),
+      };
+    }
+    case 'REVIEW_VERDICT':
+      return {
+        ...state,
+        messages: state.messages.map((m) =>
+          m.id === action.messageId && m.kind === 'review'
+            ? {
+                ...m,
+                items: m.items.map((i) =>
+                  i.id === action.itemId ? { ...i, verdict: action.verdict } : i,
+                ),
+              }
+            : m,
+        ),
+      };
     default:
       return state;
   }
@@ -146,6 +195,23 @@ export function eventToActions(event: SimEvent, _state: SimState): SimAction[] {
       ];
     case 'inspect-tool-call':
       return [{ type: 'EXPAND_TOOL', id: p.id as string }];
+    case 'open-brief-field':
+      return [{ type: 'OPEN_FIELD', id: (p.fieldId as string) ?? null }];
+    case 'add-context':
+      return [{ type: 'ADD_CONTEXT', id: p.id as string }];
+    case 'answer-question':
+      return [
+        { type: 'ANSWER_QUESTION', id: p.questionId as string, optionId: p.optionId as string },
+      ];
+    case 'review-item':
+      return [
+        {
+          type: 'REVIEW_VERDICT',
+          messageId: p.messageId as string,
+          itemId: p.itemId as string,
+          verdict: p.verdict as 'ok' | 'flag',
+        },
+      ];
     case 'approval-decision':
       return [
         {
@@ -163,8 +229,13 @@ export function eventToActions(event: SimEvent, _state: SimState): SimAction[] {
 export function toContext(state: SimState, device: SimContext['device']): SimContext {
   const tools = state.messages.filter((m) => m.kind === 'tool');
   const approval = [...state.messages].reverse().find((m) => m.kind === 'approval');
+  const unresolved = state.brief.filter((f: BriefField) => f.status !== 'confirmed');
+  const pending = state.messages.find((m) => m.kind === 'question' && m.answered === null);
   return {
     device,
+    openField: state.openField,
+    pendingQuestion: pending ? pending.id : null,
+    briefComplete: state.brief.length > 0 && unresolved.length === 0,
     screen: state.screen,
     sheet: state.sheet,
     activeConnectorId: state.activeConnectorId,

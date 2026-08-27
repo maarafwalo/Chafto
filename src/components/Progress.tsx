@@ -14,8 +14,11 @@ export function SkillMeter({
   delta?: number;
 }) {
   const max = SKILLS[skill].max;
+  // A meter can be capped at its maximum, so the award shown is the part that
+  // actually landed rather than the raw amount the run generated.
+  const applied = Math.min(delta, value);
   const filled = Math.min(BARS, Math.round((value / max) * BARS));
-  const before = Math.min(BARS, Math.round(((value - delta) / max) * BARS));
+  const before = Math.min(BARS, Math.round(((value - applied) / max) * BARS));
   return (
     <div className="meter">
       <span className="meter-label">{SKILLS[skill].label}</span>
@@ -29,7 +32,7 @@ export function SkillMeter({
         ))}
       </span>
       <span className="meter-value">
-        {delta > 0 && <span className="meter-delta">+{delta}</span>}
+        {applied > 0 && <span className="meter-delta">+{applied}</span>}
         {value}
       </span>
     </div>

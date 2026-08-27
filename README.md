@@ -36,6 +36,47 @@ Finishing it unlocks a **Challenge run**: the same world, compressed to four
 outcomes, with the Guide switched off and the draft request typed rather than
 picked from a suggestion.
 
+## Mission 02 — Brief Claude to Build a Campaign — Every Detail
+
+The depth mission. Fourteen steps, 15–20 minutes, and the one that turns someone
+into an operator rather than a user. It picks up where Mission 01 ends: the
+connector is already attached, and the question is no longer "can it reach my
+data" but "can I get a complete, defensible campaign out of it".
+
+The artefact is a **sixteen-line campaign specification** — objective, success
+metric, audience, exclusions, budget, bid strategy, ramp, creative, copy, CTA,
+conversion event, attribution window, UTM tagging, naming, test design, kill
+rules. Every line can be opened to see why it exists and what breaks when it is
+wrong. Every line is marked **confirmed**, **assumed**, or **open**, and the
+mission is not finished until nothing is assumed.
+
+| # | Step | The lesson |
+|---|------|-----------|
+| 1 | Load the fact it cannot guess (unit economics) | Context is curated, not dumped — load what changes a decision |
+| 2 | Write a brief, not a wish | Outcome + constraint + deliverable |
+| 3 | Answer its three clarifying questions | Make it interrogate the requirement instead of assuming |
+| 4 | **Hunt the assumption** it filled in silently | Triage by what being wrong costs, not by what looks important |
+| 5 | Choose the audience from evidence | Best cost-per-purchase belongs to an audience too small to spend the budget |
+| 6 | Set the bid strategy | A constraint in your head is not a constraint |
+| 7 | **Reject the draft that invents a number** | Fluent output is not evidence |
+| 8 | Write the UTM tagging | The detail everyone skips, and cannot add retrospectively |
+| 9 | Pick a naming convention | Structured data pretending to be a string |
+| 10 | Design the test | Change one thing, or learn nothing |
+| 11 | Draw the autonomy line | Asymmetric autonomy: brakes alone, never the accelerator |
+| 12 | **Pre-flight — one line does not match** | The most common launch defect, invisible unless someone reads |
+| 13 | Sign it | An approval you could defend line by line |
+| 14 | Know when to kill it | Knowing when *not* to act is the same skill |
+
+Three of those steps are traps, and none of them are guessing games — the
+evidence needed to solve each one is on screen. In Guided mode the Guide tells
+you what to look for; it never tells you which line is wrong.
+
+Every step also carries a **Go deeper** drawer: two or three questions someone
+who wants to be good at this would actually ask ("how do I spot the dangerous
+assumptions quickly?", "what is the real difference between a cost cap and a bid
+cap?", "how do I stop invented claims happening in the first place?"), answered
+properly and collapsed by default so depth never slows down momentum.
+
 ## What is actually interactive
 
 Tap buttons, open menus, type messages, browse a connector catalogue, run a
@@ -65,7 +106,14 @@ really opens the wrong connector; the Guide notices and coaches.
 - **Local answer evaluation** — the typed-instruction steps score input against a
   rubric offline and accept many reasonable phrasings, coaching weak ones instead
   of rejecting them. The simulated assistant asks a clarifying question, exactly
-  as a real one would.
+  as a real one would. Four rubrics ship: campaign analysis, action requests,
+  campaign briefs, and UTM tagging.
+- **A living specification** — the campaign brief fills in as the learner
+  decides, and the decisions are theirs: each answer option carries the brief
+  lines it writes, so the finished document is a record of their choices rather
+  than a canned result.
+- **Go deeper drawers** — optional depth on every step of Mission 02, for the
+  learner who wants the reasoning behind the reasoning.
 - **Scoring and progress** — XP, accuracy, assists used, a Gold/Silver/Bronze
   rank, and seven skill meters persisted to `localStorage`.
 - **Responsive product** — on a phone the Guide becomes a bottom sheet that still
@@ -98,13 +146,15 @@ src/
     scoring.ts         XP, accuracy, rank, skill distribution
     progress.ts        localStorage persistence
   data/              layer 2 — content, as pure data
-    missions/          metaAds.ts, metaAdsChallenge.ts, index.ts (registry)
+    missions/          metaAds.ts, metaAdsChallenge.ts, campaignBuild.ts,
+                       index.ts (registry)
     concepts.ts        concept cards
     connectors.ts      simulated connector catalogue
     catalog.ts         the 15-mission roadmap
   components/        layer 1 — the simulated app + the tutor
-    sim/               shells (phone/desktop), screens, conversation, connectors
-    guide/             Guide panel, concept card, flow diagram
+    sim/               shells (phone/desktop), screens, conversation, connectors,
+                       campaign brief + context, questions, review blocks
+    guide/             Guide panel, concept card, flow diagram, deep dive
     overlay/           Spotlight (dim, ring, bubble, pointer demo)
 ```
 
@@ -128,9 +178,12 @@ No UI changes. A step is:
   allow?: [...],                           // on-path moves that are not mistakes
   simulationResult?: [...],                // scripted beats fired on success
   weakResult?: [...],                      // beats fired on a weak typed answer
-  quiz?, teach?, advance?
+  quiz?, teach?, deepDive?, advance?
 }
 ```
+
+`expect` is always checked before `allow`, so a broad allow rule ("poking around
+in the brief is fine") can never mask the real answer.
 
 `target` is a list of rules resolved against live simulation state, which is how
 one step can highlight the `+` button, then the menu item it reveals.
@@ -146,10 +199,14 @@ a real tool-use loop returns.
 
 ## Roadmap
 
-The catalogue ships all fifteen planned missions with the first playable. The
+The catalogue ships sixteen planned missions with the first two playable. The
 rest — email, files, databases, CSV analysis, Claude Code, research, content,
 process automation, APIs, agent building, tool definitions, approval workflows,
 and a complete marketing system — are declared in `src/data/catalog.ts`.
+
+Mission 02 has no separate challenge run because the whole mission works in
+Challenge mode: pick it on the brief screen and every instruction and highlight
+disappears, leaving only the fourteen objectives.
 
 ## A note on branding
 

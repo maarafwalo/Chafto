@@ -68,13 +68,13 @@ export type SkillId =
   | 'safety';
 
 export const SKILLS: Record<SkillId, { id: SkillId; label: string; max: number }> = {
-  prompting: { id: 'prompting', label: 'Prompting', max: 300 },
-  toolUse: { id: 'toolUse', label: 'Tool Use', max: 300 },
-  connectors: { id: 'connectors', label: 'Connectors', max: 300 },
-  agents: { id: 'agents', label: 'Agents', max: 300 },
-  automation: { id: 'automation', label: 'Automation', max: 300 },
-  dataAnalysis: { id: 'dataAnalysis', label: 'Data Analysis', max: 300 },
-  safety: { id: 'safety', label: 'Human-in-the-loop', max: 300 },
+  prompting: { id: 'prompting', label: 'Prompting', max: 2000 },
+  toolUse: { id: 'toolUse', label: 'Tool Use', max: 2000 },
+  connectors: { id: 'connectors', label: 'Connectors', max: 2000 },
+  agents: { id: 'agents', label: 'Agents', max: 2000 },
+  automation: { id: 'automation', label: 'Automation', max: 2000 },
+  dataAnalysis: { id: 'dataAnalysis', label: 'Data Analysis', max: 2000 },
+  safety: { id: 'safety', label: 'Human-in-the-loop', max: 2000 },
 };
 
 /* ------------------------------------------------------------------ */
@@ -102,6 +102,10 @@ export type SimEventType =
   | 'toggle-permission'
   | 'attach-file'
   | 'quiz-answer'
+  | 'answer-question'
+  | 'open-brief-field'
+  | 'review-item'
+  | 'add-context'
   | 'acknowledge';
 
 export interface SimEvent<P = Record<string, unknown>> {
@@ -113,7 +117,14 @@ export interface SimEvent<P = Record<string, unknown>> {
 /* Simulation state                                                    */
 /* ------------------------------------------------------------------ */
 
-export type SimScreen = 'chat' | 'connectors' | 'connector-detail' | 'files' | 'settings';
+export type SimScreen =
+  | 'chat'
+  | 'connectors'
+  | 'connector-detail'
+  | 'files'
+  | 'settings'
+  | 'brief'
+  | 'context';
 export type SimSheet = 'none' | 'plus' | 'catalog' | 'auth' | 'menu';
 
 export type ConnectorStatus = 'available' | 'connecting' | 'connected';
@@ -147,6 +158,52 @@ export interface CampaignDraft {
   creative: string;
   objective: string;
   basedOn: string;
+}
+
+/** One decided (or still undecided) line of the campaign specification. */
+export interface BriefField {
+  id: string;
+  group: string;
+  label: string;
+  value: string | null;
+  /**
+   * empty     — nobody has decided this yet.
+   * assumed   — the model filled it in without being told. The dangerous one.
+   * confirmed — a human decided it, or it was derived from supplied evidence.
+   */
+  status: 'empty' | 'assumed' | 'confirmed';
+  /** Why this detail exists at all. */
+  why: string;
+  /** What actually goes wrong when it is left assumed or set badly. */
+  risk: string;
+  /** Where the value came from — supplied context, a tool result, your answer. */
+  source?: string;
+}
+
+/** A fact the learner can put into the model's working context. */
+export interface ContextBlock {
+  id: string;
+  label: string;
+  detail: string;
+  /** Whether this fact can actually change a decision in the campaign. */
+  useful: boolean;
+  added: boolean;
+  /** Shown after it is added — what it now lets the model do. */
+  unlocks?: string;
+}
+
+/** A line item the learner must accept or reject on its merits. */
+export interface ReviewItem {
+  id: string;
+  label: string;
+  detail: string;
+  /** True when the item is genuinely fine. Exactly the thing to be checked. */
+  sound: boolean;
+  /** Explanation shown when flagged. */
+  flagNote: string;
+  /** Explanation shown when approved. */
+  okNote: string;
+  verdict: 'none' | 'ok' | 'flag';
 }
 
 export type ToolResult =
@@ -184,6 +241,35 @@ export type SimMessage =
       draft: CampaignDraft;
       status: 'pending' | 'approved' | 'rejected';
     }
+  | {
+      id: string;
+      role: 'assistant';
+      kind: 'question';
+      prompt: string;
+      note?: string;
+      options: {
+        id: string;
+        label: string;
+        detail: string;
+        /**
+         * Brief lines this answer decides. The learner's choice is what fills
+         * the specification — the document is a record of their decisions, not
+         * a canned result.
+         */
+        writes?: { id: string; value: string; status: BriefField['status']; source?: string }[];
+      }[];
+      answered: string | null;
+    }
+  | {
+      id: string;
+      role: 'assistant';
+      kind: 'review';
+      title: string;
+      intro: string;
+      /** 'variants' renders copy options; 'checklist' renders a pre-flight list. */
+      mode: 'variants' | 'checklist';
+      items: ReviewItem[];
+    }
   | { id: string; role: 'system'; kind: 'notice'; text: string };
 
 export interface Suggestion {
@@ -207,6 +293,12 @@ export interface SimState {
   suggestions: Suggestion[];
   toast: { id: string; text: string; tone: 'ok' | 'info' } | null;
   files: { id: string; name: string; meta: string }[];
+  /** The campaign specification being assembled — the mission's real artefact. */
+  brief: BriefField[];
+  /** Facts loaded into the assistant's working context. */
+  context: ContextBlock[];
+  /** Brief line currently opened for a drill-down. */
+  openField: string | null;
 }
 
 /* Simulation actions (internal to the simulation layer). */
@@ -224,7 +316,16 @@ export type SimAction =
   | { type: 'BUSY'; busy: boolean }
   | { type: 'SUGGESTIONS'; suggestions: Suggestion[] }
   | { type: 'TOAST'; toast: SimState['toast'] }
-  | { type: 'ATTACH_FILE'; file: { id: string; name: string; meta: string } };
+  | { type: 'ATTACH_FILE'; file: { id: string; name: string; meta: string } }
+  | {
+      type: 'SET_BRIEF';
+      id: string;
+      patch: Partial<Pick<BriefField, 'value' | 'status' | 'source'>>;
+    }
+  | { type: 'ADD_CONTEXT'; id: string }
+  | { type: 'OPEN_FIELD'; id: string | null }
+  | { type: 'ANSWER_QUESTION'; id: string; optionId: string }
+  | { type: 'REVIEW_VERDICT'; messageId: string; itemId: string; verdict: 'ok' | 'flag' };
 
 /* ------------------------------------------------------------------ */
 /* Mission content                                                     */
@@ -240,6 +341,12 @@ export interface SimContext {
   busy: boolean;
   lastToolId: string | null;
   approvalStatus: 'none' | 'pending' | 'approved' | 'rejected';
+  /** Which brief line is open, so a step can target the drawer's contents. */
+  openField: string | null;
+  /** The first question still waiting on an answer — lets a step follow a form. */
+  pendingQuestion: string | null;
+  /** How complete the specification is — used for targeting and for the Guide. */
+  briefComplete: boolean;
 }
 
 /** Pick a highlight target based on where the learner currently is. */
@@ -340,6 +447,12 @@ export interface MissionStep {
   advance?: 'auto' | 'manual';
   /** Extra teaching UI in the Guide for this step. */
   teach?: { kind: 'flow'; nodes: string[] } | { kind: 'callout'; title: string; body: string };
+  /**
+   * Optional depth. Each entry is a question a learner who wants to go further
+   * would actually ask, answered properly. Collapsed until they ask for it, so
+   * depth never gets in the way of momentum.
+   */
+  deepDive?: { q: string; a: string }[];
 }
 
 export interface Mission {
@@ -362,7 +475,7 @@ export interface Mission {
   steps: MissionStep[];
   /** Optional follow-up run in CHALLENGE mode. */
   challengeMissionId?: string;
-  outro?: { headline: string; takeaways: string[] };
+  outro?: { headline: string; lede?: string; takeaways: string[] };
 }
 
 /* ------------------------------------------------------------------ */

@@ -3,6 +3,7 @@ import { LEARNING_MODES, type LearningMode } from '../../engine/types';
 import { conceptById } from '../../data/concepts';
 import { ConceptCard } from './ConceptCard';
 import { FlowDiagram } from './FlowDiagram';
+import { DeepDive } from './DeepDive';
 import { SKILLS } from '../../engine/types';
 
 const MODE_ORDER: LearningMode[] = ['guided', 'practice', 'challenge'];
@@ -167,6 +168,8 @@ export function GuidePanel({ engine: e }: { engine: MissionEngine }) {
               {engine.revealWhy ? 'Show less' : 'Tell me more'}
             </button>
           </div>
+
+          {step.deepDive && step.deepDive.length > 0 && <DeepDive items={step.deepDive} />}
 
           <div className="learning">
             <p className="do-label">You are learning</p>
