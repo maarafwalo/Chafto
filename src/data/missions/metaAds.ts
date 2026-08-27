@@ -24,23 +24,46 @@ export const CAMPAIGN_DRAFT: CampaignDraft = {
 /* Reusable scripted beats                                             */
 /* ------------------------------------------------------------------ */
 
-/** Claude reaches for the data tool and gets a result back. */
-export const fetchDataBeats: ScenarioBeat[] = [
+
+/** Claude decides it needs a tool, and the client asks you before running it. */
+export const permissionBeats: ScenarioBeat[] = [
   { delay: 150, action: { type: 'BUSY', busy: true } },
   {
-    delay: 750,
+    delay: 800,
     action: {
       type: 'PUSH_MESSAGE',
       message: {
         id: 'sc-1',
         role: 'assistant',
         kind: 'text',
-        text: "I don't have your campaign numbers in this conversation, so I'll pull them through the Windsor.ai connector first.",
+        text: "I don't have your campaign numbers in this conversation, so I'll pull them through the Windsor.ai connector.",
       },
     },
   },
   {
-    delay: 1350,
+    delay: 1500,
+    action: {
+      type: 'PUSH_MESSAGE',
+      message: {
+        id: 'perm-1',
+        role: 'assistant',
+        kind: 'permission',
+        connectorId: 'windsor',
+        tool: 'windsor.get_campaign_performance()',
+        summary:
+          'Reads spend, click-through rate, cost per action and return on ad spend for your Meta campaigns. Read-only — it changes nothing.',
+        decision: 'pending',
+      },
+    },
+  },
+  { delay: 1650, action: { type: 'BUSY', busy: false } },
+];
+
+/** The tool actually runs, and returns data. */
+export const fetchDataBeats: ScenarioBeat[] = [
+  { delay: 150, action: { type: 'BUSY', busy: true } },
+  {
+    delay: 700,
     action: {
       type: 'PUSH_MESSAGE',
       message: {
@@ -55,7 +78,7 @@ export const fetchDataBeats: ScenarioBeat[] = [
     },
   },
   {
-    delay: 2900,
+    delay: 2200,
     action: {
       type: 'PATCH_MESSAGE',
       id: 'tool-1',
@@ -65,7 +88,40 @@ export const fetchDataBeats: ScenarioBeat[] = [
       },
     },
   },
-  { delay: 3050, action: { type: 'BUSY', busy: false } },
+  { delay: 2350, action: { type: 'BUSY', busy: false } },
+];
+
+/** Declining is a real option, and the assistant handles it. */
+export const denyBeats: ScenarioBeat[] = [
+  { delay: 150, action: { type: 'BUSY', busy: true } },
+  {
+    delay: 900,
+    action: {
+      type: 'PUSH_MESSAGE',
+      message: {
+        id: 'sc-deny',
+        role: 'assistant',
+        kind: 'text',
+        text: 'Understood — I have not run it. Without that tool I can only talk about Meta Ads in general, not about your account. Allow it when you are ready and I will pull the real numbers.',
+      },
+    },
+  },
+  {
+    delay: 1500,
+    action: {
+      type: 'PUSH_MESSAGE',
+      message: {
+        id: 'perm-2',
+        role: 'assistant',
+        kind: 'permission',
+        connectorId: 'windsor',
+        tool: 'windsor.get_campaign_performance()',
+        summary: 'Same request, still waiting on you. Read-only — it changes nothing.',
+        decision: 'pending',
+      },
+    },
+  },
+  { delay: 1650, action: { type: 'BUSY', busy: false } },
 ];
 
 /** Claude reasons over the returned rows. */
@@ -99,11 +155,7 @@ export const draftSuggestionBeats: ScenarioBeat[] = [
           label: 'Prepare a new campaign based on Campaign B',
           text: 'Based on Campaign B, prepare a new campaign draft I can review.',
         },
-        {
-          id: 'sg-explain',
-          label: 'Explain the ROAS gap',
-          text: 'Why is the ROAS gap between Campaign B and C so large?',
-        },
+        { id: 'sg-explain', label: 'Explain the ROAS gap', text: 'Why is the ROAS gap between Campaign B and C so large?' },
       ],
     },
   },
@@ -258,112 +310,172 @@ export const executeBeats: ScenarioBeat[] = [
 /* Mission 01                                                          */
 /* ------------------------------------------------------------------ */
 
+/** Back-to-the-conversation fallbacks, per device. */
+const toChat = (id: string, caption: string) => [
+  { id, when: { screen: 'chat' as const }, caption },
+  { id: 'chat-chat-1', caption: 'Back to the conversation' },
+];
+const toChatPhone = (id: string, caption: string) => [
+  { id, when: { screen: 'chat' as const }, caption },
+  { id: 'phone-new-chat', caption: 'Back to the conversation' },
+];
+
 export const metaAdsMission: Mission = {
   id: 'meta-ads',
   order: 1,
   title: 'Teach Claude to Analyze Meta Ads',
   premise: 'I want Claude to analyze my Meta Ads and tell me which campaign is performing best.',
   summary:
-    'Give an AI model access to an outside service, get it to pull real numbers, reason over them, and prepare an action you approve.',
-  goal: 'Connect a marketing-data connector, have Claude analyse the campaigns, and approve the action it prepares.',
+    'Give Claude access to an outside service the way you actually do it — Settings, the directory, the per-chat switch — then get it to pull real numbers, reason over them, and prepare an action you approve.',
+  goal: 'Add a connector, switch it on for the conversation, get a grounded analysis, and approve the action Claude prepares.',
   difficulty: 'Intermediate',
-  minutes: '8–12 min',
+  minutes: '10–15 min',
   skills: ['connectors', 'toolUse', 'agents', 'dataAnalysis', 'safety', 'automation'],
-  concepts: ['connector', 'tool', 'tool-use', 'grounding', 'agent', 'human-in-the-loop', 'workflow', 'mcp'],
+  concepts: ['connector', 'tool', 'tool-use', 'grounding', 'agent', 'human-in-the-loop', 'workflow', 'mcp', 'permission'],
   status: 'available',
   variant: 'lesson',
   challengeMissionId: 'meta-ads-challenge',
   steps: [
     {
       id: 's1',
-      title: 'Open Connectors',
-      objective: 'Find the place where outside services get attached to the assistant.',
-      actionType: 'navigate',
+      title: 'Find where tools are switched on',
+      objective: 'Open the menu that controls what Claude may use in this conversation.',
+      actionType: 'click',
       concept: 'connector',
-      why: 'Claude has no access to your advertising account by default. Connectors are the screen where that access is granted.',
+      why: 'Claude has no access to your advertising account by default. Everything it may use in a chat is listed in one menu — and right now that menu is empty.',
       explanation:
-        'An AI model can only work with what is in front of it: the conversation, and any tool it has been given. It cannot reach into your ad account, your inbox or your database on its own — and that is a safety property, not a limitation. The Connectors screen is where you deliberately open one door at a time.',
-      hint: 'Look for the place where outside services are managed. On desktop it lives in the left sidebar; on phone it is behind the + button.',
-      successMessage: 'You opened Connectors — this is where Claude gets access to the outside world.',
+        'A model can only work with what is in front of it: the conversation, and any tool it has been given. It cannot reach into your ad account, your inbox or your database on its own — and that is a safety property, not a limitation. Search and tools is where you see exactly what this conversation has been granted.',
+      hint: 'It is in the row of buttons underneath the message box, next to the + .',
+      successMessage: 'That is the whole list of what Claude can reach right now. It is empty.',
+      realWorld: 'In Claude: the Search and tools button at the bottom left of the message box (or type “/”).',
       learning: ['connectors'],
       xp: 60,
       devices: {
         desktop: {
-          instruction: 'Click Connectors in the left sidebar.',
-          note: 'On desktop the sidebar keeps everything one click away.',
-          target: [{ id: 'nav-connectors', caption: 'Click Connectors' }],
+          instruction: 'Click Search and tools under the message box.',
+          target: [{ id: 'composer-tools', caption: 'Open Search and tools' }],
         },
         phone: {
-          instruction: 'Tap the + button next to the message box, then choose Connectors.',
-          note: 'On phone there is no sidebar, so the same options live behind the + button.',
-          target: [
-            { id: 'sheet-connectors', when: { sheet: 'plus' }, caption: 'Tap Connectors' },
-            { id: 'phone-plus', caption: 'Tap +' },
-          ],
+          instruction: 'Tap the tools button under the message box.',
+          note: 'On phone the button shows just the icon — the menu is identical.',
+          target: [{ id: 'composer-tools', caption: 'Open Search and tools' }],
         },
       },
-      expect: { event: 'open-screen', where: { screen: 'connectors' } },
-      allow: [{ event: 'open-sheet', where: { sheet: 'plus' } }],
+      expect: { event: 'open-menu', where: { menu: 'tools' } },
+      allow: [{ event: 'open-menu', where: { menu: 'plus' } }],
+      deepDive: [
+        {
+          q: 'What is the difference between this menu and Settings?',
+          a: 'This menu is scoped to the conversation you are in. Settings is your whole account. A connector added in Settings appears here as a switch — available, but off until you turn it on for a given chat.',
+        },
+        {
+          q: 'What else lives in here?',
+          a: 'Web search, extended thinking and research toggles. All three change what Claude does with your next message, and all three are per-conversation, which is why they sit next to the message box rather than three menus deep.',
+        },
+      ],
     },
     {
       id: 's2',
+      title: 'Open the connector directory',
+      objective: 'Get to the place where new connectors are added to your account.',
+      actionType: 'navigate',
+      concept: 'mcp',
+      why: 'The switch you want does not exist yet. Connectors are added at the account level first, in Settings.',
+      explanation:
+        'This split is worth understanding because it trips people up constantly. Adding a connector is an account-level act: you authorise Claude to reach a service. Switching it on is a conversation-level act: you decide this particular chat may use it. Two different decisions, two different places, and skipping the second is the single most common reason someone says "I connected it but Claude says it cannot see my data".',
+      hint: 'The tools menu has a link at the bottom for adding new connectors. From there, look for the browse button.',
+      successMessage: 'This is the directory — every service Claude can be connected to.',
+      realWorld: 'In Claude: Settings → Connectors → Browse connectors. You can also reach it from “Add connectors” in the tools menu.',
+      learning: ['connectors'],
+      xp: 80,
+      devices: {
+        desktop: {
+          instruction: 'Click Add connectors, then Browse connectors on the Settings page.',
+          target: [
+            { id: 'menu-add-connectors', when: { sheet: 'tools' }, caption: 'Add connectors' },
+            { id: 'btn-browse-connectors', when: { screen: 'settings' }, caption: 'Browse connectors' },
+            { id: 'composer-tools', caption: 'Open Search and tools' },
+          ],
+        },
+        phone: {
+          instruction: 'Tap Add connectors, then Browse connectors on the Settings page.',
+          target: [
+            { id: 'menu-add-connectors', when: { sheet: 'tools' }, caption: 'Add connectors' },
+            { id: 'btn-browse-connectors', when: { screen: 'settings' }, caption: 'Browse connectors' },
+            { id: 'composer-tools', caption: 'Open the tools menu' },
+          ],
+        },
+      },
+      expect: { event: 'open-menu', where: { menu: 'directory' } },
+      allow: [
+        { event: 'open-settings' },
+        { event: 'open-menu', where: { menu: 'tools' } },
+        { event: 'open-screen' },
+      ],
+      deepDive: [
+        {
+          q: 'Can I connect something that is not in the directory?',
+          a: 'Yes — Claude supports custom connectors over MCP, where you point it at a server URL. The directory is the curated set; MCP is the open standard underneath that lets anything implement the same plug shape.',
+        },
+        {
+          q: 'Does connecting a service give Claude everything in it?',
+          a: 'No. Each connector declares a specific set of tools and scopes, and you see them before you authorise. Reading your ad performance and changing your ad spend are separate permissions even within one connector.',
+        },
+      ],
+    },
+    {
+      id: 's3',
       title: 'Pick the right connector',
       objective: 'Choose the service that can actually reach Meta Ads data.',
       actionType: 'click',
-      concept: 'mcp',
-      why: 'Each connector opens exactly one service. You need the one that speaks to advertising platforms — Windsor.ai.',
+      concept: 'tool',
+      why: 'Each connector opens exactly one service. You need the one that speaks to advertising platforms.',
       explanation:
-        'Windsor.ai sits between marketing platforms and other software: it pulls campaign data out of Meta, Google, TikTok and others and offers it through one consistent interface. That is the same job the Model Context Protocol does for AI apps generally — one standard plug, so any service that implements it can be used by any AI application. In this simulation Windsor.ai supplies fictional Meta Ads numbers.',
-      hint: 'Open the connector catalogue, then find the one filed under "Marketing data".',
-      successMessage: 'Windsor.ai it is — the bridge to advertising platforms.',
+        'Windsor.ai sits between marketing platforms and other software: it pulls campaign data out of Meta, Google, TikTok and others and offers it through one consistent interface. Each connector arrives with a declared list of tools — named functions with inputs and outputs. That list is the real contract, and it is worth reading before you agree to it.',
+      hint: 'Look for the one filed under "Marketing data".',
+      successMessage: 'Windsor.ai — the bridge to advertising platforms.',
+      realWorld: 'In Claude: pick a connector in the directory and it opens its page, showing the tools and permissions it wants.',
       learning: ['connectors', 'toolUse'],
       xp: 80,
       devices: {
         desktop: {
-          instruction: 'Click Add connector, then choose Windsor.ai from the catalogue.',
-          target: [
-            { id: 'connector-card-windsor', when: { sheet: 'catalog' }, caption: 'Choose Windsor.ai' },
-            { id: 'nav-connectors', when: { screen: 'connector-detail' }, caption: 'Not this one — go back' },
-            { id: 'btn-add-connector', caption: 'Click Add connector' },
-          ],
+          instruction: 'Click Connect on Windsor.ai in the directory.',
+          target: [{ id: 'connector-card-windsor', caption: 'Choose Windsor.ai' }],
         },
         phone: {
-          instruction: 'Tap Add connector, then choose Windsor.ai from the list.',
-          target: [
-            { id: 'connector-card-windsor', when: { sheet: 'catalog' }, caption: 'Tap Windsor.ai' },
-            { id: 'tab-connectors', when: { screen: 'connector-detail' }, caption: 'Not this one — go back' },
-            { id: 'btn-add-connector', caption: 'Tap Add connector' },
-          ],
+          instruction: 'Tap Connect on Windsor.ai in the directory.',
+          target: [{ id: 'connector-card-windsor', caption: 'Choose Windsor.ai' }],
         },
       },
       expect: { event: 'select-connector', where: { id: 'windsor' } },
-      allow: [{ event: 'open-sheet', where: { sheet: 'catalog' } }],
+      allow: [{ event: 'open-menu', where: { menu: 'directory' } }],
     },
     {
-      id: 's3',
-      title: 'Grant access',
-      objective: 'Complete the connection and see exactly what Claude is allowed to do.',
+      id: 's4',
+      title: 'Read the scopes and allow access',
+      objective: 'Complete the connection, having read what you are agreeing to.',
       actionType: 'click',
       concept: 'permission',
-      why: 'Connecting is a permission decision. Read the scopes before you agree to them — this is the moment you decide what the model may touch.',
+      why: 'Connecting is a permission decision. This is the moment you decide what Claude may touch.',
       explanation:
-        'A real connection runs an authorisation flow: the service asks who is asking, what they want to do, and gets your consent. Notice the two scopes here are not equal. Reading performance data is harmless and reversible. Preparing a campaign draft touches money — so it is granted with "approval required" attached. Narrow scopes are how you keep an agent useful and safe at the same time.',
-      hint: 'Start the connection, then read the permission list and confirm it.',
-      successMessage: 'Connected. Claude now has two Windsor.ai tools it is allowed to call.',
+        'A real connection runs an authorisation flow: the service asks who is asking, what they want to do, and gets your consent. Notice the two scopes here are not equal. Reading performance data is harmless and reversible. Preparing a campaign draft touches money — so it is granted with "approval required" attached. Narrow scopes are how you keep an assistant useful and safe at the same time.',
+      hint: 'Start the connection on the connector page, then read the permission list and allow it.',
+      successMessage: 'Added to your account. Note what the confirmation said — added, not enabled.',
+      realWorld: 'In Claude: an OAuth window opens and you approve the scopes, exactly as with any other app you connect.',
       learning: ['connectors', 'safety'],
       xp: 90,
       devices: {
         desktop: {
-          instruction: 'Click Connect Windsor.ai, then authorise the two permissions.',
+          instruction: 'Click Connect Windsor.ai, then Allow access.',
           target: [
-            { id: 'btn-authorize', when: { sheet: 'auth' }, caption: 'Authorise access' },
+            { id: 'btn-authorize', when: { sheet: 'auth' }, caption: 'Allow access' },
             { id: 'btn-connect', caption: 'Connect Windsor.ai' },
           ],
         },
         phone: {
-          instruction: 'Tap Connect Windsor.ai, then authorise the two permissions.',
+          instruction: 'Tap Connect Windsor.ai, then Allow access.',
           target: [
-            { id: 'btn-authorize', when: { sheet: 'auth' }, caption: 'Authorise access' },
+            { id: 'btn-authorize', when: { sheet: 'auth' }, caption: 'Allow access' },
             { id: 'btn-connect', caption: 'Connect Windsor.ai' },
           ],
         },
@@ -372,37 +484,88 @@ export const metaAdsMission: Mission = {
       allow: [{ event: 'connect-connector', where: { id: 'windsor' } }],
     },
     {
-      id: 's4',
+      id: 's5',
+      title: 'Switch it on for this conversation',
+      objective: 'Do the half of the job that adding a connector does not do for you.',
+      actionType: 'click',
+      concept: 'permission',
+      why: 'A connector on your account is available everywhere and active nowhere. Each conversation decides for itself.',
+      explanation:
+        'This is the step people miss, and the symptom is confusing: Claude says it cannot see your data even though you definitely connected it. The design is deliberate — you rarely want every tool live in every conversation, and a chat with six connectors switched on is both slower and easier to misfire. Turn on what this piece of work needs, and nothing else.',
+      hint: 'Go back to the conversation, open Search and tools again, and turn Windsor.ai on.',
+      successMessage: 'Now it is actually available here. Two separate acts, two separate places.',
+      realWorld: 'In Claude: + or Search and tools in the composer → toggle the connector on for this chat.',
+      learning: ['connectors', 'safety'],
+      xp: 130,
+      advance: 'manual',
+      devices: {
+        desktop: {
+          instruction: 'Return to the chat, open Search and tools, and toggle Windsor.ai on.',
+          target: [
+            { id: 'chat-connector-windsor', when: { sheet: 'tools' }, caption: 'Turn it on for this chat' },
+            { id: 'composer-tools', when: { screen: 'chat' }, caption: 'Open Search and tools' },
+            { id: 'chat-chat-1', caption: 'Back to the conversation' },
+          ],
+        },
+        phone: {
+          instruction: 'Return to the chat, open the tools menu, and toggle Windsor.ai on.',
+          target: [
+            { id: 'chat-connector-windsor', when: { sheet: 'tools' }, caption: 'Turn it on for this chat' },
+            { id: 'composer-tools', when: { screen: 'chat' }, caption: 'Open the tools menu' },
+            { id: 'phone-menu', caption: 'Open the menu' },
+          ],
+        },
+      },
+      expect: { event: 'toggle-chat-connector', where: { id: 'windsor', on: true } },
+      allow: [
+        { event: 'open-screen' },
+        { event: 'open-settings' },
+        { event: 'open-menu' },
+        { event: 'select-connector' },
+      ],
+      teach: {
+        kind: 'callout',
+        title: 'The most common “it doesn’t work”',
+        body: 'Added to the account ≠ enabled in the chat. When someone says a connector is broken, this is the first thing to check — and it takes one click to rule out.',
+      },
+      deepDive: [
+        {
+          q: 'Why not just have it on everywhere by default?',
+          a: 'Every enabled tool is described to the model on every message, which costs context and adds ways to go wrong. It also widens the blast radius: a tool that can write to your CRM should not be sitting live in a chat about holiday planning.',
+        },
+        {
+          q: 'Does this reset for each new chat?',
+          a: 'Yes — a new conversation starts clean. If you use a connector constantly, keeping the work inside a project is the usual answer, so the setup travels with the project rather than being redone each time.',
+        },
+      ],
+    },
+    {
+      id: 's6',
       title: 'Give Claude the job',
       objective: 'Write your own instruction — this one is not typed for you.',
       actionType: 'type',
       concept: 'grounding',
-      why: 'A connector only creates the possibility. Nothing happens until you say what you actually want done.',
+      why: 'A connector only creates the possibility. Nothing happens until you say what you want done.',
       explanation:
         'A good instruction carries three things: the task ("analyse", "compare", "rank"), the data ("my Meta Ads campaigns"), and what a good answer looks like ("which performs best, and why"). Vague instructions do not fail loudly — they quietly produce vague answers. Being specific is the single cheapest upgrade to any AI result.',
-      hint: 'Go back to the conversation and ask Claude to analyse your Meta Ads campaign performance. Mention the data, and say what "best" means to you.',
+      hint: 'Ask Claude to analyse your Meta Ads campaign performance. Mention the data, and say what "best" means to you.',
       successMessage: 'Sent. You told Claude what to do and which data to do it with.',
+      realWorld: 'In Claude: type it in the message box. Enter sends, Shift+Enter starts a new line.',
       learning: ['prompting', 'dataAnalysis'],
       xp: 140,
       devices: {
         desktop: {
-          instruction: 'Go back to the conversation and type your instruction to Claude, then send it.',
-          target: [
-            { id: 'composer-input', when: { screen: 'chat' }, caption: 'Type your instruction here' },
-            { id: 'nav-chat', caption: 'Back to the conversation' },
-          ],
+          instruction: 'Type your instruction to Claude and send it.',
+          target: toChat('composer-input', 'Type your instruction here'),
         },
         phone: {
-          instruction: 'Go back to the conversation and type your instruction to Claude, then send it.',
-          target: [
-            { id: 'composer-input', when: { screen: 'chat' }, caption: 'Type your instruction' },
-            { id: 'tab-chat', caption: 'Back to Chat' },
-          ],
+          instruction: 'Type your instruction to Claude and send it.',
+          target: toChatPhone('composer-input', 'Type your instruction'),
         },
       },
       expect: { event: 'send-message', evaluator: 'analyzeCampaigns' },
-      allow: [{ event: 'open-screen', where: { screen: 'chat' } }],
-      simulationResult: fetchDataBeats,
+      allow: [{ event: 'open-screen' }, { event: 'open-menu' }],
+      simulationResult: permissionBeats,
       weakResult: [
         { delay: 150, action: { type: 'BUSY', busy: true } },
         {
@@ -421,16 +584,60 @@ export const metaAdsMission: Mission = {
       ],
     },
     {
-      id: 's5',
-      title: 'Watch Claude use a tool',
-      objective: 'Open the tool call and see where the numbers actually came from.',
+      id: 's7',
+      title: 'Answer the permission prompt',
+      objective: 'Decide whether the tool Claude picked may actually run.',
+      actionType: 'decide',
+      concept: 'human-in-the-loop',
+      why: 'Claude does not run tools. It asks, and something on your side executes — which means there is a point where you can say no.',
+      explanation:
+        'Read the three buttons carefully, because they are a real decision. Allow once is the right default for anything unfamiliar. Always allow is convenient and permanent for this conversation — fine for a read-only tool, worth hesitating over for anything that writes. Decline is a genuine option: Claude carries on without the data rather than failing. This prompt is the seam between the model and the world, and it is entirely yours.',
+      hint: 'The prompt is in the conversation. Allow once is the safe choice for a read-only tool you have not used before.',
+      successMessage: 'Allowed — and only for this one call, which is the right instinct.',
+      realWorld: 'In Claude Desktop and Cowork, connector and MCP tool calls surface exactly this prompt: Allow once, Always allow, or decline.',
+      learning: ['safety', 'toolUse'],
+      xp: 120,
+      advance: 'manual',
+      devices: {
+        desktop: {
+          instruction: 'Read the tool request, then choose Allow once.',
+          target: [{ id: 'perm-once', caption: 'Allow once' }],
+        },
+        phone: {
+          instruction: 'Read the tool request, then tap Allow once.',
+          target: [{ id: 'perm-once', caption: 'Allow once' }],
+        },
+      },
+      expect: { event: 'permission-decision', where: { decision: 'once' } },
+      allow: [
+        { event: 'permission-decision', where: { decision: 'always' } },
+        { event: 'permission-decision', where: { decision: 'deny' }, then: denyBeats },
+        { event: 'open-menu' },
+      ],
+      simulationResult: fetchDataBeats,
+      deepDive: [
+        {
+          q: 'When is “Always allow” the wrong choice?',
+          a: 'Whenever the tool can change something. Read-only lookups are cheap to auto-approve; anything that sends, writes, deletes or spends should keep asking, because the cost of one bad call is not symmetric with the convenience of not being asked.',
+        },
+        {
+          q: 'What exactly is Claude sending?',
+          a: 'A structured request: the tool name plus arguments it composed from your instruction. It never executes anything itself — your client does, and hands the result back. You are about to see that request in full.',
+        },
+      ],
+    },
+    {
+      id: 's8',
+      title: 'Read the tool call',
+      objective: 'Open the call and see where the numbers actually came from.',
       actionType: 'inspect',
       concept: 'tool-use',
       why: 'Claude is not reaching into Meta by magic. It asked for a tool, the tool returned data, and that data is now in the conversation.',
       explanation:
         'Read the loop in order. Claude decided it needed facts it did not have. It requested windsor.get_campaign_performance() with specific arguments. Your application ran that call — the model never runs anything itself — and handed back a result. Only now can Claude say anything true about your account. Every number in the answer that follows traces back to this block, which is why being able to open and read it matters.',
-      hint: 'The block labelled TOOL CALL in the conversation can be opened. Click it.',
+      hint: 'The block labelled TOOL CALL can be opened. Click it.',
       successMessage: 'That block is the whole trick: a request, a result, and a paper trail.',
+      realWorld: 'In Claude: tool and search results appear as collapsible rows in the conversation — click to expand and read them.',
       learning: ['toolUse', 'agents'],
       xp: 110,
       advance: 'manual',
@@ -453,7 +660,7 @@ export const metaAdsMission: Mission = {
       },
     },
     {
-      id: 's6',
+      id: 's9',
       title: 'Read the analysis',
       objective: 'Check that you can defend the conclusion from the data.',
       actionType: 'quiz',
@@ -479,28 +686,20 @@ export const metaAdsMission: Mission = {
       quiz: {
         prompt: 'Claude picked Campaign B. What in the data justifies that?',
         options: [
-          {
-            id: 'q1',
-            label: 'It spent the most money',
-            feedback: 'No — Campaign A spent more ($4,180) and returned far less. Spend is not performance.',
-          },
+          { id: 'q1', label: 'It spent the most money', feedback: 'No — Campaign A spent more ($4,180) and returned far less. Spend is not performance.' },
           {
             id: 'q2',
             label: 'Highest ROAS (3.9) at the lowest CPA ($6.40)',
             correct: true,
             feedback: 'Exactly. It returns most per pound spent and acquires each customer most cheaply — those two together are the case.',
           },
-          {
-            id: 'q3',
-            label: 'Claude knows Meta Ads best practice',
-            feedback: 'General knowledge did not decide this. The tool result did — that is the difference a connector makes.',
-          },
+          { id: 'q3', label: 'Claude knows Meta Ads best practice', feedback: 'General knowledge did not decide this. The tool result did — that is the difference a connector makes.' },
         ],
       },
       simulationResult: draftSuggestionBeats,
     },
     {
-      id: 's7',
+      id: 's10',
       title: 'Move from analysis to action',
       objective: 'Ask Claude to prepare something, not just report something.',
       actionType: 'click',
@@ -510,6 +709,7 @@ export const metaAdsMission: Mission = {
         'Claude now chooses a second tool on its own — create_campaign_draft() — because the goal implies it. You did not name the tool. That is what makes it agentic: you give an objective, it works out the sequence. Notice it stops at "draft" rather than "live". A well-built agent knows which of its own steps need a signature.',
       hint: 'Claude has offered follow-up actions under the conversation. Pick the one that prepares a new campaign.',
       successMessage: 'Claude picked its own next tool to reach the goal you set.',
+      realWorld: 'In Claude: suggested follow-ups appear above the message box after a substantial answer.',
       learning: ['agents', 'automation'],
       xp: 110,
       advance: 'manual',
@@ -528,14 +728,14 @@ export const metaAdsMission: Mission = {
       teach: { kind: 'flow', nodes: ['Data', 'Analysis', 'Decision', 'Action'] },
     },
     {
-      id: 's8',
+      id: 's11',
       title: 'Approve or reject',
       objective: 'Make the call a human is supposed to make.',
       actionType: 'decide',
       concept: 'human-in-the-loop',
       why: 'Reading data is reversible. Spending money is not. Actions that cross that line stop and ask.',
       explanation:
-        'This pause is a design decision, not a limitation of the model. When you build an agent you choose which actions it may take alone and which need a signature — and you draw that line by consequence, not by difficulty. Rejecting here is a perfectly good answer: try it and see what Claude does before you approve.',
+        'Note that this is a different gate from the permission prompt earlier. That one asked whether a tool may run at all. This one asks whether a specific prepared action should happen — the model has done the work and is holding it at the boundary. When you build agents you choose where that boundary sits, and you draw it by consequence, not by difficulty.',
       hint: 'Read the draft, then decide. Both buttons are real — rejecting is a valid choice and Claude will handle it.',
       successMessage: 'Approved. You made the decision, Claude did the work.',
       learning: ['safety', 'agents'],
@@ -555,14 +755,14 @@ export const metaAdsMission: Mission = {
       simulationResult: executeBeats,
     },
     {
-      id: 's9',
+      id: 's12',
       title: 'Read the receipt',
       objective: 'Close the loop and name what you just built.',
       actionType: 'observe',
       concept: 'workflow',
-      why: 'You just built a complete AI workflow: data in, reasoning, a decision, an action, and a human checkpoint.',
+      why: 'You just built a complete AI workflow: access, permission, data, reasoning, a decision, an action, and a human checkpoint.',
       explanation:
-        'Every useful AI system you will meet is a variation on this shape. Change the connector and the same nine steps become "summarise my inbox", "audit my database", "draft replies to my customers". The skill you just practised is not Meta Ads — it is recognising the shape and knowing where to put the checkpoint.',
+        'Every useful AI system you will meet is a variation on this shape. Change the connector and the same steps become "summarise my inbox", "audit my database", "draft replies to my customers". The skill you just practised is not Meta Ads — it is recognising the shape, knowing the two places access is configured, and knowing where to put the checkpoint.',
       hint: 'Look over the summary, then finish the mission.',
       successMessage: 'Mission complete.',
       learning: ['automation', 'agents'],
@@ -582,12 +782,13 @@ export const metaAdsMission: Mission = {
   ],
   outro: {
     headline: 'You just ran a complete agent workflow.',
+    lede: 'And you did it through the same screens and menus you will use in the real app.',
     takeaways: [
-      'A connector is how an AI application reaches a service it otherwise cannot see.',
+      'A connector is added in Settings and switched on per conversation. Two acts, two places — skipping the second is the classic stumble.',
       'A tool call is a request the model makes and your app executes — the model never runs it itself.',
+      'The permission prompt is yours: allow once for anything unfamiliar, and think twice before "always" on a tool that writes.',
       'Answers built on tool results can be checked; answers built on memory cannot.',
-      'An agent chooses its own next tool once you give it a goal.',
-      'Actions with consequences stop at a human. You decide where that line sits.',
+      'An agent chooses its own next tool once you give it a goal, and stops where consequences begin.',
     ],
   },
 };

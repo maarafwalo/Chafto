@@ -1,23 +1,13 @@
 import { useLayoutEffect, useRef, useState, type ReactNode } from 'react';
 import type { DeviceMode, SimEvent, SimState } from '../../engine/types';
 import { Conversation } from './Conversation';
-import { AuthSheet, CatalogSheet, ConnectorDetail, ConnectorsScreen } from './Connectors';
-import { BriefScreen, ContextScreen } from './Brief';
-import { connectorById } from '../../data/connectors';
-
-const SCREEN_TITLES: Record<SimState['screen'], string> = {
-  chat: 'Conversation',
-  connectors: 'Connectors',
-  'connector-detail': 'Connector',
-  files: 'Files',
-  settings: 'Settings',
-  brief: 'Campaign brief',
-  context: 'Context',
-};
+import { Composer, ModelMenu, PlusMenu, ToolsMenu } from './Composer';
+import { AuthSheet, ConnectorDetail, DirectorySheet, SettingsScreen } from './Settings';
+import { InstructionsSheet, KnowledgeSheet, ProjectScreen } from './Project';
+import { ArtifactPanel } from './Artifact';
 
 /* ------------------------------------------------------------------ */
-/* Scale-to-fit. Keeps the simulated device intact on small viewports  */
-/* while leaving real DOM rects correct, so the spotlight still lands. */
+/* Scale-to-fit                                                        */
 /* ------------------------------------------------------------------ */
 
 function Fit({
@@ -29,9 +19,7 @@ function Fit({
 }: {
   w: number;
   h: number;
-  /** Grow into spare room rather than letterboxing (desktop shell wants this). */
   fill?: boolean;
-  /** Never shrink past this, scroll instead — legibility beats fitting. */
   minScale?: number;
   children: ReactNode;
 }) {
@@ -47,8 +35,6 @@ function Fit({
       if (r.width === 0 || r.height === 0) return;
       const s = Math.max(minScale, Math.min(1, r.width / w, r.height / h));
       setScale(s);
-      // At scale 1 the shell can stretch into whatever room is left over;
-      // once it is shrinking, it keeps its designed proportions.
       setBox(fill ? { w: Math.max(w, r.width / s), h: Math.max(h, r.height / s) } : { w, h });
     };
     measure();
@@ -59,17 +45,8 @@ function Fit({
 
   return (
     <div ref={ref} className="sim-fit scroll" style={{ width: '100%', height: '100%', overflow: 'auto' }}>
-      {/* Outer box reserves the *scaled* size so scrolling works; the inner box
-          keeps its design size and is transformed down onto it. */}
       <div style={{ width: box.w * scale, height: box.h * scale, margin: 'auto', flex: '0 0 auto' }}>
-        <div
-          style={{
-            width: box.w,
-            height: box.h,
-            transform: `scale(${scale})`,
-            transformOrigin: 'top left',
-          }}
-        >
+        <div style={{ width: box.w, height: box.h, transform: `scale(${scale})`, transformOrigin: 'top left' }}>
           {children}
         </div>
       </div>
@@ -81,314 +58,69 @@ function Fit({
 /* Shared pieces                                                       */
 /* ------------------------------------------------------------------ */
 
-function Composer({
-  sim,
-  emit,
-  setComposer,
-  device,
-}: {
-  sim: SimState;
-  emit: (e: SimEvent) => void;
-  setComposer: (t: string) => void;
-  device: DeviceMode;
-}) {
-  const send = () => {
-    const text = sim.composer.trim();
-    if (!text || sim.busy) return;
-    emit({ type: 'send-message', payload: { text } });
-  };
-
-  return (
-    <div className="composer">
-      {sim.suggestions.length > 0 && (
-        <div className="suggestions">
-          {sim.suggestions.map((s) => (
-            <button
-              key={s.id}
-              className="suggestion"
-              data-sim-id={`suggestion-${s.id}`}
-              onClick={() => emit({ type: 'use-suggestion', payload: { id: s.id, text: s.text } })}
-            >
-              {s.label}
-            </button>
-          ))}
-        </div>
-      )}
-      <div className="composer-row">
-        {device === 'phone' ? (
-          <button
-            className="round-btn"
-            data-sim-id="phone-plus"
-            aria-label="More options"
-            onClick={() => emit({ type: 'open-sheet', payload: { sheet: 'plus' } })}
-          >
-            +
-          </button>
-        ) : (
-          <button
-            className="round-btn"
-            data-sim-id="desktop-attach"
-            aria-label="Attach a file"
-            onClick={() => emit({ type: 'attach-file', payload: { name: 'q3-report.csv', meta: 'Simulated · 12 KB' } })}
-          >
-            ⎗
-          </button>
-        )}
-        <textarea
-          className="composer-input"
-          data-sim-id="composer-input"
-          rows={1}
-          value={sim.composer}
-          placeholder={sim.busy ? 'Working…' : 'Message the assistant…'}
-          disabled={sim.busy}
-          onChange={(e) => setComposer(e.target.value)}
-          onKeyDown={(e) => {
-            if (e.key === 'Enter' && !e.shiftKey) {
-              e.preventDefault();
-              send();
-            }
-          }}
-        />
-        <button
-          className="round-btn round-btn-send"
-          data-sim-id="composer-send"
-          aria-label="Send message"
-          disabled={!sim.composer.trim() || sim.busy}
-          onClick={send}
-        >
-          ↑
-        </button>
-      </div>
-      <p className="composer-hint">Simulated assistant · responses are pre-written, nothing leaves your browser</p>
-    </div>
-  );
-}
-
-function FilesScreen({ sim, emit }: { sim: SimState; emit: (e: SimEvent) => void }) {
-  return (
-    <div className="pad">
-      <p className="conn-blurb" style={{ marginBottom: 14 }}>
-        Files you attach live in the conversation. The assistant can read them — it cannot reach
-        anything you have not given it.
-      </p>
-      <div className="section-title">In this conversation ({sim.files.length})</div>
-      {sim.files.length === 0 ? (
-        <div className="empty">No files attached yet.</div>
-      ) : (
-        <div className="list">
-          {sim.files.map((f) => (
-            <div className="conn-card" key={f.id} style={{ cursor: 'default' }}>
-              <span className="conn-glyph" style={{ background: '#8d8378' }} aria-hidden>
-                ▤
-              </span>
-              <span>
-                <span className="conn-name" style={{ display: 'block' }}>
-                  {f.name}
-                </span>
-                <span className="conn-blurb">{f.meta}</span>
-              </span>
-            </div>
-          ))}
-        </div>
-      )}
-      <div className="section">
-        <button
-          className="sbtn sbtn-block"
-          data-sim-id="btn-upload"
-          onClick={() => emit({ type: 'attach-file', payload: { name: 'campaign-notes.csv', meta: 'Simulated · 8 KB' } })}
-        >
-          ⎗ Attach a simulated file
-        </button>
-      </div>
-    </div>
-  );
-}
-
-function SettingsScreen({ sim, emit }: { sim: SimState; emit: (e: SimEvent) => void }) {
-  const windsor = connectorById('windsor');
-  return (
-    <div className="pad">
-      <div className="section-title">Tool permissions</div>
-      <p className="conn-blurb" style={{ marginBottom: 10 }}>
-        Every tool can be switched off independently. This is the difference between an assistant
-        that can read your data and one that can act on it.
-      </p>
-      {windsor.tools.map((t) => (
-        <div className="tool-row" key={t.name}>
-          <div style={{ minWidth: 0 }}>
-            <code>{t.name}</code>
-            <small>{t.description}</small>
-          </div>
-          <button
-            className="switch"
-            role="switch"
-            aria-checked={sim.permissions[t.name] !== false}
-            aria-label={`Allow ${t.name}`}
-            data-sim-id={`setting-${t.name}`}
-            onClick={() =>
-              emit({ type: 'toggle-permission', payload: { key: t.name, value: sim.permissions[t.name] === false } })
-            }
-          />
-        </div>
-      ))}
-      <div className="section">
-        <div className="section-title">Approvals</div>
-        <div className="tool-row">
-          <div>
-            <code>require_human_approval</code>
-            <small>Actions that spend money or change live systems stop and ask you first.</small>
-          </div>
-          <button className="switch" role="switch" aria-checked="true" aria-label="Require approval (locked on)" disabled />
-        </div>
-        <p className="conn-blurb" style={{ marginTop: 8 }}>
-          Locked on for this simulation — turning it off is exactly the decision this mission is
-          teaching you to think about.
-        </p>
-      </div>
-    </div>
-  );
-}
-
-function ScreenBody({
-  sim,
-  emit,
-  setComposer,
-  device,
-}: {
-  sim: SimState;
-  emit: (e: SimEvent) => void;
-  setComposer: (t: string) => void;
-  device: DeviceMode;
-}) {
-  if (sim.screen === 'chat') {
-    return (
-      <div className="sim-screen">
-        <div className="sim-scroll scroll">
-          <Conversation sim={sim} emit={emit} />
-        </div>
-        <Composer sim={sim} emit={emit} setComposer={setComposer} device={device} />
-      </div>
-    );
-  }
-  return (
-    <div className="sim-screen">
-      <div className="sim-scroll scroll">
-        {sim.screen === 'connectors' && <ConnectorsScreen sim={sim} emit={emit} />}
-        {sim.screen === 'connector-detail' && <ConnectorDetail sim={sim} emit={emit} />}
-        {sim.screen === 'brief' && <BriefScreen sim={sim} emit={emit} />}
-        {sim.screen === 'context' && <ContextScreen sim={sim} emit={emit} />}
-        {sim.screen === 'files' && <FilesScreen sim={sim} emit={emit} />}
-        {sim.screen === 'settings' && <SettingsScreen sim={sim} emit={emit} />}
-      </div>
-    </div>
-  );
-}
-
-function Sheets({ sim, emit }: { sim: SimState; emit: (e: SimEvent) => void }) {
-  if (sim.sheet === 'catalog') return <CatalogSheet sim={sim} emit={emit} />;
-  if (sim.sheet === 'auth') return <AuthSheet sim={sim} emit={emit} />;
-  if (sim.sheet === 'plus') {
-    return (
-      <div className="sim-overlay" onClick={() => emit({ type: 'close-sheet' })}>
-        <div className="sheet" onClick={(e) => e.stopPropagation()}>
-          <div className="sheet-grab" />
-          <div className="sheet-body">
-            <button
-              className="menu-item"
-              data-sim-id="sheet-connectors"
-              onClick={() => emit({ type: 'open-screen', payload: { screen: 'connectors' } })}
-            >
-              <span className="menu-glyph" aria-hidden>
-                ⇄
-              </span>
-              <span>
-                Connectors
-                <br />
-                <span className="conn-blurb">Give the assistant access to a service</span>
-              </span>
-            </button>
-            <button
-              className="menu-item"
-              data-sim-id="sheet-files"
-              onClick={() => emit({ type: 'attach-file', payload: { name: 'campaign-notes.csv', meta: 'Simulated · 8 KB' } })}
-            >
-              <span className="menu-glyph" aria-hidden>
-                ⎗
-              </span>
-              <span>
-                Attach a file
-                <br />
-                <span className="conn-blurb">Add a simulated file to this conversation</span>
-              </span>
-            </button>
-            <button
-              className="menu-item"
-              data-sim-id="sheet-settings"
-              onClick={() => emit({ type: 'open-screen', payload: { screen: 'settings' } })}
-            >
-              <span className="menu-glyph" aria-hidden>
-                ⚙
-              </span>
-              <span>
-                Settings
-                <br />
-                <span className="conn-blurb">Tool permissions and approvals</span>
-              </span>
-            </button>
-          </div>
-        </div>
-      </div>
-    );
-  }
-  return null;
-}
-
-/* ------------------------------------------------------------------ */
-/* Shells                                                              */
-/* ------------------------------------------------------------------ */
-
-interface NavItem {
-  screen: SimState['screen'];
-  label: string;
-  glyph: string;
-  id: string;
-}
-
-const ALL_NAV: Record<string, NavItem> = {
-  chat: { screen: 'chat', label: 'Chat', glyph: '✳', id: 'nav-chat' },
-  brief: { screen: 'brief', label: 'Brief', glyph: '☰', id: 'nav-brief' },
-  context: { screen: 'context', label: 'Context', glyph: '◨', id: 'nav-context' },
-  files: { screen: 'files', label: 'Files', glyph: '▤', id: 'nav-files' },
-  connectors: { screen: 'connectors', label: 'Connectors', glyph: '⇄', id: 'nav-connectors' },
-  settings: { screen: 'settings', label: 'Settings', glyph: '⚙', id: 'nav-settings' },
-};
-
-/**
- * Navigation follows the mission. A mission that never builds a brief does not
- * get a Brief tab — the simulated app only shows what is actually in play, the
- * way a real product would for a workspace with nothing in it.
- */
-function navFor(sim: SimState, device: DeviceMode): NavItem[] {
-  const deep = sim.brief.length > 0 || sim.context.length > 0;
-  const keys = deep
-    ? device === 'phone'
-      ? ['chat', 'brief', 'context', 'connectors']
-      : ['chat', 'brief', 'context', 'files', 'connectors', 'settings']
-    : device === 'phone'
-      ? ['chat', 'files', 'connectors', 'settings']
-      : ['chat', 'files', 'connectors', 'settings'];
-  return keys.map((k) => ALL_NAV[k]);
-}
-
 interface ShellProps {
   sim: SimState;
   emit: (e: SimEvent) => void;
   setComposer: (t: string) => void;
 }
 
+function ChatPane({ sim, emit, setComposer, device }: ShellProps & { device: DeviceMode }) {
+  return (
+    <div className="sim-screen">
+      <div className="sim-scroll scroll">
+        <Conversation sim={sim} emit={emit} />
+      </div>
+      <div className="composer-wrap">
+        <Composer sim={sim} emit={emit} setComposer={setComposer} device={device} />
+        {sim.sheet === 'plus' && <PlusMenu emit={emit} />}
+        {sim.sheet === 'tools' && <ToolsMenu sim={sim} emit={emit} />}
+        {sim.sheet === 'account' && <ModelMenu sim={sim} emit={emit} />}
+      </div>
+    </div>
+  );
+}
+
+function Screen({ sim, emit, setComposer, device }: ShellProps & { device: DeviceMode }) {
+  if (sim.screen === 'chat') return <ChatPane sim={sim} emit={emit} setComposer={setComposer} device={device} />;
+  return (
+    <div className="sim-screen">
+      <div className="sim-scroll scroll">
+        {sim.screen === 'settings' && <SettingsScreen sim={sim} emit={emit} />}
+        {sim.screen === 'connector-detail' && <ConnectorDetail sim={sim} emit={emit} />}
+        {sim.screen === 'project' && <ProjectScreen sim={sim} emit={emit} />}
+      </div>
+    </div>
+  );
+}
+
+/** Overlays that sit above the whole app rather than inside the composer. */
+function Overlays({ sim, emit }: { sim: SimState; emit: (e: SimEvent) => void }) {
+  return (
+    <>
+      {sim.sheet === 'directory' && <DirectorySheet sim={sim} emit={emit} />}
+      {sim.sheet === 'auth' && <AuthSheet sim={sim} emit={emit} />}
+      {sim.sheet === 'instructions' && <InstructionsSheet emit={emit} />}
+      {sim.sheet === 'plus' && sim.screen === 'project' && <KnowledgeSheet sim={sim} emit={emit} />}
+      {sim.toast && <div className="sim-toast">✓ {sim.toast.text}</div>}
+    </>
+  );
+}
+
+const SCREEN_TITLE = (sim: SimState) =>
+  sim.screen === 'settings'
+    ? 'Settings'
+    : sim.screen === 'connector-detail'
+      ? 'Connector'
+      : sim.screen === 'project'
+        ? (sim.project?.name ?? 'Project')
+        : (sim.chats.find((c) => c.id === sim.activeChatId)?.title ?? 'New chat');
+
+/* ------------------------------------------------------------------ */
+/* Desktop shell — sidebar, conversation, artifact panel               */
+/* ------------------------------------------------------------------ */
+
 function DesktopShell({ sim, emit, setComposer }: ShellProps) {
-  const connectedCount = Object.values(sim.connectorStatus).filter((s) => s === 'connected').length;
-  const nav = navFor(sim, 'desktop');
+  const recents = sim.chats.slice(0, 4);
   return (
     <div className="dsk">
       <div className="dsk-outer">
@@ -396,70 +128,108 @@ function DesktopShell({ sim, emit, setComposer }: ShellProps) {
           <span className="dsk-dot" />
           <span className="dsk-dot" />
           <span className="dsk-dot" />
-          <span className="dsk-url mono">simulated.local/assistant</span>
+          <span className="dsk-url mono">claude.ai/chat</span>
+          <span className="sim-badge">SIMULATED ENVIRONMENT</span>
         </div>
+
         <div className="dsk-body">
           <aside className="dsk-rail">
             <div className="sim-brand">
-              <span className="sim-mark" aria-hidden>
-                ✳
-              </span>
-              <span>
-                <span className="sim-brand-name" style={{ display: 'block' }}>
-                  Assistant
-                </span>
-                <span className="sim-brand-sub">Simulated</span>
-              </span>
+              <span className="sim-mark" aria-hidden>✳</span>
+              <span className="sim-brand-name">Claude</span>
             </div>
-            {nav.map((n) => (
+
+            <button
+              className="rail-new"
+              data-sim-id="new-chat"
+              onClick={() => emit({ type: 'new-chat', payload: { inProject: sim.inProject } })}
+            >
+              <span aria-hidden>✎</span> New chat
+            </button>
+            <button className="rail-item" data-sim-id="rail-search">
+              <span className="rail-glyph" aria-hidden>⌕</span> Search chats
+            </button>
+
+            <div className="rail-group">Recents</div>
+            {recents.map((c) => (
               <button
-                key={n.id}
-                className="rail-item"
-                data-sim-id={n.id}
-                aria-current={
-                  sim.screen === n.screen || (n.screen === 'connectors' && sim.screen === 'connector-detail')
-                }
-                onClick={() => emit({ type: 'open-screen', payload: { screen: n.screen } })}
+                key={c.id}
+                className="rail-item rail-chat"
+                data-sim-id={`chat-${c.id}`}
+                aria-current={sim.screen === 'chat' && c.id === sim.activeChatId}
+                onClick={() => emit({ type: 'open-screen', payload: { screen: 'chat' } })}
               >
-                <span className="rail-glyph" aria-hidden>
-                  {n.glyph}
-                </span>
-                {n.label}
-                {n.screen === 'connectors' && connectedCount > 0 && (
-                  <span className="rail-badge">{connectedCount}</span>
-                )}
+                {c.title}
               </button>
             ))}
-            <div className="rail-sep" />
-            <div className="rail-item" style={{ cursor: 'default', fontSize: 11.5 }}>
-              <span className="rail-glyph" aria-hidden>
-                ◷
-              </span>
-              Recent conversation
-            </div>
+
+            {sim.project && (
+              <>
+                <div className="rail-group">Projects</div>
+                <button
+                  className="rail-item"
+                  data-sim-id="rail-project"
+                  aria-current={sim.screen === 'project'}
+                  onClick={() => emit({ type: 'open-screen', payload: { screen: 'project' } })}
+                >
+                  <span className="rail-glyph" aria-hidden>▣</span>
+                  {sim.project.name}
+                </button>
+              </>
+            )}
+
             <div className="rail-foot">
-              <span className="rail-avatar" aria-hidden>
-                YOU
-              </span>
-              <span style={{ fontSize: 12, color: 'var(--sim-ink-2)' }}>Learner workspace</span>
+              <button
+                className="rail-account"
+                data-sim-id="account-chip"
+                onClick={() => emit({ type: 'open-settings', payload: { section: 'connectors' } })}
+              >
+                <span className="rail-avatar" aria-hidden>YO</span>
+                <span style={{ minWidth: 0 }}>
+                  <span className="rail-account-name">Your workspace</span>
+                  <span className="rail-account-plan">Settings</span>
+                </span>
+              </button>
             </div>
           </aside>
 
           <main className="dsk-main">
             <header className="sim-head">
-              <div>
-                <div className="sim-title">{SCREEN_TITLES[sim.screen]}</div>
+              <div style={{ minWidth: 0 }}>
+                <div className="sim-title">{SCREEN_TITLE(sim)}</div>
                 <div className="sim-sub">
                   {sim.screen === 'chat'
-                    ? connectedCount > 0
-                      ? `${connectedCount} connector active`
-                      : 'No connectors — the assistant can only see this conversation'
-                    : 'Simulated workspace'}
+                    ? sim.inProject
+                      ? `In project · ${sim.project?.name ?? ''}`
+                      : sim.chatConnectors.length > 0
+                        ? `${sim.chatConnectors.length} connector on in this chat`
+                        : 'No connectors on in this chat'
+                    : ' '}
                 </div>
               </div>
-              <span className="sim-badge">SIMULATED ENVIRONMENT</span>
+              {sim.screen === 'chat' && sim.brief.length > 0 && !sim.artifactOpen && (
+                <button
+                  className="sbtn"
+                  data-sim-id="artifact-reopen"
+                  onClick={() => emit({ type: 'open-artifact', payload: { open: true } })}
+                >
+                  ▤ Campaign brief
+                </button>
+              )}
             </header>
-            <ScreenBody sim={sim} emit={emit} setComposer={setComposer} device="desktop" />
+
+            <div className="dsk-split" data-artifact={sim.artifactOpen}>
+              <div className="dsk-conv">
+                <Screen sim={sim} emit={emit} setComposer={setComposer} device="desktop" />
+              </div>
+              {sim.artifactOpen && (
+                <ArtifactPanel
+                  sim={sim}
+                  emit={emit}
+                  onClose={() => emit({ type: 'open-artifact', payload: { open: false } })}
+                />
+              )}
+            </div>
           </main>
         </div>
       </div>
@@ -467,8 +237,11 @@ function DesktopShell({ sim, emit, setComposer }: ShellProps) {
   );
 }
 
+/* ------------------------------------------------------------------ */
+/* Phone shell — drawer navigation, no tab bar                         */
+/* ------------------------------------------------------------------ */
+
 function PhoneShell({ sim, emit, setComposer }: ShellProps) {
-  const nav = navFor(sim, 'phone');
   return (
     <div className="phone">
       <div className="phone-pill" />
@@ -480,47 +253,95 @@ function PhoneShell({ sim, emit, setComposer }: ShellProps) {
             <span aria-hidden>⏻</span>
           </span>
         </div>
+
         <header className="ph-top">
-          {sim.screen === 'connector-detail' ? (
-            <button
-              className="ph-icon-btn"
-              data-sim-id="phone-back"
-              aria-label="Back"
-              onClick={() => emit({ type: 'open-screen', payload: { screen: 'connectors' } })}
-            >
-              ‹
-            </button>
-          ) : (
-            <span className="sim-mark" aria-hidden>
-              ✳
-            </span>
-          )}
-          <div style={{ minWidth: 0 }}>
-            <div className="sim-title">{SCREEN_TITLES[sim.screen]}</div>
+          <button
+            className="ph-icon-btn"
+            data-sim-id="phone-menu"
+            aria-label="Open menu"
+            onClick={() => emit({ type: 'open-menu', payload: { menu: 'drawer' } })}
+          >
+            ☰
+          </button>
+          <div style={{ minWidth: 0, flex: 1, textAlign: 'center' }}>
+            <div className="sim-title">{SCREEN_TITLE(sim)}</div>
+            <div className="sim-badge sim-badge-sm">SIMULATED</div>
           </div>
-          <span className="sim-badge" style={{ fontSize: 8 }}>
-            SIMULATED
-          </span>
+          <button
+            className="ph-icon-btn"
+            data-sim-id="phone-new-chat"
+            aria-label="New chat"
+            onClick={() => emit({ type: 'new-chat', payload: { inProject: sim.inProject } })}
+          >
+            ✎
+          </button>
         </header>
-        <ScreenBody sim={sim} emit={emit} setComposer={setComposer} device="phone" />
-        <nav className="ph-tabs">
-          {nav.map((n) => (
-            <button
-              key={n.id}
-              className="ph-tab"
-              data-sim-id={`tab-${n.screen}`}
-              aria-current={
-                sim.screen === n.screen || (n.screen === 'connectors' && sim.screen === 'connector-detail')
-              }
-              onClick={() => emit({ type: 'open-screen', payload: { screen: n.screen } })}
-            >
-              <span aria-hidden>{n.glyph}</span>
-              <span>{n.label}</span>
-            </button>
-          ))}
-        </nav>
-        <Sheets sim={sim} emit={emit} />
-        {sim.toast && <div className="sim-toast">✓ {sim.toast.text}</div>}
+
+        {sim.artifactOpen ? (
+          <ArtifactPanel
+            sim={sim}
+            emit={emit}
+            onClose={() => emit({ type: 'open-artifact', payload: { open: false } })}
+          />
+        ) : (
+          <Screen sim={sim} emit={emit} setComposer={setComposer} device="phone" />
+        )}
+
+        {sim.sheet === 'drawer' && (
+          <div className="sim-overlay ph-drawer-wrap" onClick={() => emit({ type: 'close-menu' })}>
+            <nav className="ph-drawer" onClick={(e) => e.stopPropagation()}>
+              <div className="sim-brand">
+                <span className="sim-mark" aria-hidden>✳</span>
+                <span className="sim-brand-name">Claude</span>
+              </div>
+              <button
+                className="rail-new"
+                data-sim-id="new-chat"
+                onClick={() => emit({ type: 'new-chat', payload: { inProject: sim.inProject } })}
+              >
+                <span aria-hidden>✎</span> New chat
+              </button>
+              <div className="rail-group">Recents</div>
+              {sim.chats.slice(0, 4).map((c) => (
+                <button
+                  key={c.id}
+                  className="rail-item rail-chat"
+                  onClick={() => emit({ type: 'open-screen', payload: { screen: 'chat' } })}
+                >
+                  {c.title}
+                </button>
+              ))}
+              {sim.project && (
+                <>
+                  <div className="rail-group">Projects</div>
+                  <button
+                    className="rail-item"
+                    data-sim-id="rail-project"
+                    onClick={() => emit({ type: 'open-screen', payload: { screen: 'project' } })}
+                  >
+                    <span className="rail-glyph" aria-hidden>▣</span>
+                    {sim.project.name}
+                  </button>
+                </>
+              )}
+              <div className="rail-foot">
+                <button
+                  className="rail-account"
+                  data-sim-id="account-chip"
+                  onClick={() => emit({ type: 'open-settings', payload: { section: 'connectors' } })}
+                >
+                  <span className="rail-avatar" aria-hidden>YO</span>
+                  <span style={{ minWidth: 0 }}>
+                    <span className="rail-account-name">Your workspace</span>
+                    <span className="rail-account-plan">Settings</span>
+                  </span>
+                </button>
+              </div>
+            </nav>
+          </div>
+        )}
+
+        <Overlays sim={sim} emit={emit} />
       </div>
     </div>
   );
@@ -528,12 +349,7 @@ function PhoneShell({ sim, emit, setComposer }: ShellProps) {
 
 /* ------------------------------------------------------------------ */
 
-export function SimApp({
-  sim,
-  emit,
-  setComposer,
-  device,
-}: ShellProps & { device: DeviceMode }) {
+export function SimApp({ sim, emit, setComposer, device }: ShellProps & { device: DeviceMode }) {
   return (
     <div className="sim-stage" data-device={device} id="sim-stage">
       {device === 'phone' ? (
@@ -541,11 +357,10 @@ export function SimApp({
           <PhoneShell sim={sim} emit={emit} setComposer={setComposer} />
         </Fit>
       ) : (
-        <Fit w={940} h={620} fill minScale={0.62}>
+        <Fit w={1000} h={640} fill minScale={0.62}>
           <div style={{ width: '100%', height: '100%', position: 'relative' }}>
             <DesktopShell sim={sim} emit={emit} setComposer={setComposer} />
-            <Sheets sim={sim} emit={emit} />
-            {sim.toast && <div className="sim-toast">✓ {sim.toast.text}</div>}
+            <Overlays sim={sim} emit={emit} />
           </div>
         </Fit>
       )}

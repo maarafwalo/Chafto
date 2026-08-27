@@ -392,12 +392,20 @@ export const fillBriefBeats: ScenarioBeat[] = [
     },
   },
   {
-    delay: 1900,
+    delay: 1850,
     action: {
-      type: 'TOAST',
-      toast: { id: 'toast-brief', text: '8 lines drafted · 8 marked as assumptions', tone: 'info' },
+      type: 'PUSH_MESSAGE',
+      message: {
+        id: 'cb-artifact',
+        role: 'assistant',
+        kind: 'artifact-card',
+        title: 'Campaign brief',
+        subtitle: 'Document · 16 lines',
+        version: 1,
+      },
     },
   },
+  { delay: 2000, action: { type: 'ARTIFACT', open: true, version: 1 } },
   { delay: 2050, action: { type: 'BUSY', busy: false } },
 ];
 
@@ -913,11 +921,11 @@ export const launchBeats: ScenarioBeat[] = [
 
 const chatTarget = (id: string, caption: string) => [
   { id, when: { screen: 'chat' as const }, caption },
-  { id: 'nav-chat', caption: 'Back to the conversation' },
+  { id: 'chat-chat-1', caption: 'Back to the conversation' },
 ];
 const chatTargetPhone = (id: string, caption: string) => [
   { id, when: { screen: 'chat' as const }, caption },
-  { id: 'tab-chat', caption: 'Back to Chat' },
+  { id: 'phone-new-chat', caption: 'Back to the conversation' },
 ];
 
 export const campaignBuildMission: Mission = {
@@ -939,11 +947,20 @@ export const campaignBuildMission: Mission = {
   status: 'available',
   variant: 'lesson',
   initialSim: {
-    // Mission 01 ended with this connector attached; this mission picks up there.
+    // Mission 01 ended with this connector added and switched on; we pick up there.
     connectorStatus: {
       gmail: 'available', drive: 'available', supabase: 'available', vercel: 'available',
       windsor: 'connected', canva: 'available', zapier: 'available', huggingface: 'available',
     },
+    chatConnectors: ['windsor'],
+    project: {
+      id: 'proj-1',
+      name: 'Paid acquisition',
+      description: 'Everything to do with buying customers — campaigns, creative, reporting.',
+      instructions: null,
+    },
+    chats: [{ id: 'chat-1', title: 'Next campaign' }],
+    activeChatId: 'chat-1',
     brief: BRIEF_FIELDS,
     context: CONTEXT_BLOCKS,
     messages: [
@@ -951,7 +968,7 @@ export const campaignBuildMission: Mission = {
         id: 'cb-0',
         role: 'assistant',
         kind: 'text',
-        text: 'Your marketing data connector is still attached from last time, so I can pull performance whenever we need it. What are we building?',
+        text: 'Your marketing connector is on in this chat, so I can pull performance whenever we need it. What are we building?',
       },
     ],
   },
@@ -965,25 +982,29 @@ export const campaignBuildMission: Mission = {
       why: 'Without knowing what an order is worth, "is $8 a good cost per purchase?" is unanswerable — and every decision after it is taste, not arithmetic.',
       explanation:
         'Context is not a dumping ground. The test for any fact is simple: can it change a decision in this piece of work? Your margin can — it sets the ceiling on what a customer may cost, which then determines the bid strategy, the kill rule, and which audience is even viable. Your founding story cannot. Loading everything is not thoroughness; it is noise that competes for the model’s attention with the things that matter.',
-      hint: 'Open Context and load the fact that tells the assistant what one order is actually worth.',
-      successMessage: 'Loaded. Every cost decision from here can be checked against a real number.',
+      hint: 'Open the project, then use the + on Project knowledge to add the document about what an order is worth.',
+      successMessage: 'In project knowledge. Every chat in this project can now check a cost against a real number.',
+      realWorld: 'In Claude: open a Project → the Project knowledge panel on the right → + to add files or text.',
       learning: ['prompting', 'dataAnalysis'],
       xp: 110,
       devices: {
         desktop: {
-          instruction: 'Open Context and load the Unit economics block.',
-          note: 'Anything loaded here is available on every message in this workspace.',
+          instruction: 'Open the Paid acquisition project and add Unit economics to Project knowledge.',
+          note: 'Project knowledge is read on every message in the project, not just this chat.',
           target: [
-            { id: 'context-add-unit-economics', when: { screen: 'context' }, caption: 'Load Unit economics' },
-            { id: 'nav-context', caption: 'Open Context' },
+            { id: 'context-add-unit-economics', when: { sheet: 'plus' }, caption: 'Add Unit economics' },
+            { id: 'knowledge-add', when: { screen: 'project' }, caption: 'Add to project knowledge' },
+            { id: 'rail-project', caption: 'Open the project' },
           ],
         },
         phone: {
-          instruction: 'Open the Context tab and load the Unit economics block.',
-          note: 'Anything loaded here is available on every message in this workspace.',
+          instruction: 'Open the Paid acquisition project and add Unit economics to Project knowledge.',
+          note: 'Project knowledge is read on every message in the project, not just this chat.',
           target: [
-            { id: 'context-add-unit-economics', when: { screen: 'context' }, caption: 'Load Unit economics' },
-            { id: 'tab-context', caption: 'Open Context' },
+            { id: 'context-add-unit-economics', when: { sheet: 'plus' }, caption: 'Add Unit economics' },
+            { id: 'knowledge-add', when: { screen: 'project' }, caption: 'Add to project knowledge' },
+            { id: 'rail-project', when: { sheet: 'drawer' }, caption: 'Open the project' },
+            { id: 'phone-menu', caption: 'Open the menu' },
           ],
         },
       },
@@ -991,7 +1012,8 @@ export const campaignBuildMission: Mission = {
       allow: [
         { event: 'add-context', where: { id: 'claims-policy' } },
         { event: 'add-context', where: { id: 'past-winner' } },
-        { event: 'open-screen', where: { screen: 'context' } },
+        { event: 'open-screen' },
+        { event: 'open-menu' },
       ],
       deepDive: [
         {
@@ -1009,6 +1031,55 @@ export const campaignBuildMission: Mission = {
       ],
     },
     {
+      id: 'b1b',
+      title: 'Set the rules of the workspace',
+      objective: 'Write the standing instructions every chat in this project will follow.',
+      actionType: 'click',
+      concept: 'constraint',
+      why: 'Two sentences here change every answer you get in this project — without you retyping them.',
+      explanation:
+        'Project instructions are the highest-leverage two minutes in the whole product. Read what these say: label assumptions rather than burying them, and never invent a number. Those are exactly the two failure modes the rest of this mission is about, and stating them up front means you spend the session correcting less. A constraint written once beats a constraint remembered every time.',
+      hint: 'The Instructions panel sits under Project knowledge on the right. Use its + button.',
+      successMessage: 'Set. Every chat in here now works under those rules.',
+      realWorld: 'In Claude: Project → Instructions panel on the right → + → write how Claude should behave in this project.',
+      learning: ['prompting', 'safety'],
+      xp: 120,
+      advance: 'manual',
+      devices: {
+        desktop: {
+          instruction: 'Open Instructions on the project and save the suggested instructions.',
+          target: [
+            { id: 'btn-save-instructions', when: { sheet: 'instructions' }, caption: 'Save these' },
+            { id: 'instructions-add', caption: 'Set instructions' },
+          ],
+        },
+        phone: {
+          instruction: 'Open Instructions on the project and save the suggested instructions.',
+          target: [
+            { id: 'btn-save-instructions', when: { sheet: 'instructions' }, caption: 'Save these' },
+            { id: 'instructions-add', caption: 'Set instructions' },
+          ],
+        },
+      },
+      expect: { event: 'set-instructions' },
+      allow: [{ event: 'open-menu' }, { event: 'open-screen' }, { event: 'add-context' }],
+      teach: {
+        kind: 'callout',
+        title: 'Why this beats a longer prompt',
+        body: 'A rule in project instructions applies to every message, including the ones you send in three weeks when you have forgotten you set it. A rule typed into one prompt applies to one prompt. Same words, completely different leverage.',
+      },
+      deepDive: [
+        {
+          q: 'What belongs in instructions rather than in a message?',
+          a: 'Anything true of the work rather than of the request: how you want assumptions handled, what it must never do, the format you expect, the standards to apply. Anything specific to today goes in the message.',
+        },
+        {
+          q: 'Instructions or project knowledge — what is the difference?',
+          a: 'Knowledge is facts: your margins, your policy, last quarter’s results. Instructions are behaviour: how to act on those facts. Both are read on every message; keeping them separate keeps both readable.',
+        },
+      ],
+    },
+    {
       id: 'b2',
       title: 'Write a brief, not a wish',
       objective: 'Ask for the campaign in a way that can be executed and can be wrong specifically.',
@@ -1021,18 +1092,25 @@ export const campaignBuildMission: Mission = {
       successMessage: 'That is a brief. It can now be wrong in ways you can see.',
       learning: ['prompting'],
       xp: 150,
+      realWorld: 'In Claude: start a chat inside the project so it inherits the knowledge and instructions you just set.',
       devices: {
         desktop: {
-          instruction: 'Go to the conversation and write your brief, then send it.',
-          target: chatTarget('composer-input', 'Write the brief here'),
+          instruction: 'Start a chat in this project and write your brief, then send it.',
+          target: [
+            { id: 'composer-input', when: { screen: 'chat' }, caption: 'Write the brief here' },
+            { id: 'project-new-chat', caption: 'New chat in this project' },
+          ],
         },
         phone: {
-          instruction: 'Go to the conversation and write your brief, then send it.',
-          target: chatTargetPhone('composer-input', 'Write the brief here'),
+          instruction: 'Start a chat in this project and write your brief, then send it.',
+          target: [
+            { id: 'composer-input', when: { screen: 'chat' }, caption: 'Write the brief here' },
+            { id: 'project-new-chat', caption: 'New chat in this project' },
+          ],
         },
       },
       expect: { event: 'send-message', evaluator: 'campaignBrief' },
-      allow: [{ event: 'open-screen', where: { screen: 'chat' } }],
+      allow: [{ event: 'open-screen' }, { event: 'new-chat' }, { event: 'open-menu' }],
       simulationResult: questionsBeats,
       weakResult: [
         { delay: 150, action: { type: 'BUSY', busy: true } },
@@ -1086,7 +1164,7 @@ export const campaignBuildMission: Mission = {
             { id: 'question-q-outcome', when: { pendingQuestion: 'q-outcome' }, caption: 'What are you buying?' },
             { id: 'question-q-success', when: { pendingQuestion: 'q-success' }, caption: 'What counts as success?' },
             { id: 'question-q-budget', when: { pendingQuestion: 'q-budget' }, caption: 'What can it spend?' },
-            { id: 'nav-chat', caption: 'Back to the conversation' },
+            { id: 'chat-chat-1', caption: 'Back to the conversation' },
           ],
         },
         phone: {
@@ -1095,7 +1173,7 @@ export const campaignBuildMission: Mission = {
             { id: 'question-q-outcome', when: { pendingQuestion: 'q-outcome' }, caption: 'What are you buying?' },
             { id: 'question-q-success', when: { pendingQuestion: 'q-success' }, caption: 'What counts as success?' },
             { id: 'question-q-budget', when: { pendingQuestion: 'q-budget' }, caption: 'What can it spend?' },
-            { id: 'tab-chat', caption: 'Back to Chat' },
+            { id: 'phone-new-chat', caption: 'Back to the conversation' },
           ],
         },
       },
@@ -1103,7 +1181,7 @@ export const campaignBuildMission: Mission = {
       allow: [
         { event: 'answer-question', where: { questionId: 'q-outcome' } },
         { event: 'answer-question', where: { questionId: 'q-success' } },
-        { event: 'open-screen', where: { screen: 'chat' } },
+        { event: 'open-screen' },
         { event: 'open-brief-field' },
       ],
       simulationResult: fillBriefBeats,
@@ -1136,33 +1214,34 @@ export const campaignBuildMission: Mission = {
       why: 'Asked for a complete plan, it completed the plan. Eight lines are now decisions nobody made.',
       explanation:
         'Assumptions are not a defect — a model that refused to fill any blank would be useless. The skill is triage. Most assumptions are cheap to be wrong about; two or three are not, and they are rarely the ones that look important. Ask of each: if this is wrong, do I find out, and what does it cost me? A wrong creative format costs a week. A wrong measurement setting costs you the ability to know anything at all, because it changes the number you will judge everything else by.',
-      hint: 'Open the Campaign brief and look at the Measurement group. One line there decides which purchases get counted as caused by this campaign.',
+      hint: 'Open the Campaign brief artifact and look at the Measurement group. One line there decides which purchases get counted as caused by this campaign.',
       successMessage: 'That is the one. A measurement setting, chosen by default, that silently rescales every result you will ever read.',
       learning: ['safety', 'dataAnalysis'],
       xp: 150,
       advance: 'manual',
+      realWorld: 'In Claude: substantial documents Claude writes open as an artifact beside the chat, with version history.',
       devices: {
         desktop: {
-          instruction: 'Open the Campaign brief and open the Attribution window line.',
+          instruction: 'In the Campaign brief artifact, select the Attribution window line.',
           target: [
-            { id: 'brief-field-attribution', when: { screen: 'brief' }, caption: 'Open this line' },
-            { id: 'nav-brief', caption: 'Open the Campaign brief' },
+            { id: 'brief-field-attribution', when: { artifactOpen: true }, caption: 'Select this line' },
+            { id: 'artifact-card', caption: 'Open the artifact' },
           ],
         },
         phone: {
-          instruction: 'Open the Brief tab and open the Attribution window line.',
+          instruction: 'Open the Campaign brief artifact and select the Attribution window line.',
           target: [
-            { id: 'brief-field-attribution', when: { screen: 'brief' }, caption: 'Open this line' },
-            { id: 'tab-brief', caption: 'Open the Brief' },
+            { id: 'brief-field-attribution', when: { artifactOpen: true }, caption: 'Select this line' },
+            { id: 'artifact-card', caption: 'Open the artifact' },
           ],
         },
       },
       expect: { event: 'open-brief-field', where: { fieldId: 'attribution' } },
       allow: [
         { event: 'open-brief-field' },
-        { event: 'open-screen', where: { screen: 'brief' } },
-        { event: 'open-screen', where: { screen: 'chat' } },
-        { event: 'open-screen', where: { screen: 'context' } },
+        { event: 'open-artifact' },
+        { event: 'open-screen' },
+        { event: 'open-menu' },
       ],
       simulationResult: audienceBeats,
       teach: {
@@ -1203,19 +1282,19 @@ export const campaignBuildMission: Mission = {
           instruction: 'Read the audience data, then answer the question in the conversation.',
           target: [
             { id: 'question-q-audience', when: { screen: 'chat' }, caption: 'Pick the audience' },
-            { id: 'nav-chat', caption: 'Back to the conversation' },
+            { id: 'chat-chat-1', caption: 'Back to the conversation' },
           ],
         },
         phone: {
           instruction: 'Read the audience data, then answer the question in the conversation.',
           target: [
             { id: 'question-q-audience', when: { screen: 'chat' }, caption: 'Pick the audience' },
-            { id: 'tab-chat', caption: 'Back to Chat' },
+            { id: 'phone-new-chat', caption: 'Back to the conversation' },
           ],
         },
       },
       expect: { event: 'answer-question', where: { questionId: 'q-audience', optionId: 'lal' } },
-      allow: [{ event: 'inspect-tool-call' }, { event: 'open-brief-field' }, { event: 'open-screen', where: { screen: 'chat' } }],
+      allow: [{ event: 'inspect-tool-call' }, { event: 'open-brief-field' }, { event: 'open-screen' }],
       simulationResult: bidBeats,
       deepDive: [
         {
@@ -1250,19 +1329,19 @@ export const campaignBuildMission: Mission = {
           instruction: 'Answer the bid strategy question in the conversation.',
           target: [
             { id: 'question-q-bid', when: { screen: 'chat' }, caption: 'Choose the bid strategy' },
-            { id: 'nav-chat', caption: 'Back to the conversation' },
+            { id: 'chat-chat-1', caption: 'Back to the conversation' },
           ],
         },
         phone: {
           instruction: 'Answer the bid strategy question in the conversation.',
           target: [
             { id: 'question-q-bid', when: { screen: 'chat' }, caption: 'Choose the bid strategy' },
-            { id: 'tab-chat', caption: 'Back to Chat' },
+            { id: 'phone-new-chat', caption: 'Back to the conversation' },
           ],
         },
       },
       expect: { event: 'answer-question', where: { questionId: 'q-bid', optionId: 'cost-cap' } },
-      allow: [{ event: 'open-brief-field' }, { event: 'inspect-tool-call' }, { event: 'open-screen', where: { screen: 'chat' } }],
+      allow: [{ event: 'open-brief-field' }, { event: 'inspect-tool-call' }, { event: 'open-screen' }],
       simulationResult: creativeBeats,
       deepDive: [
         {
@@ -1298,14 +1377,14 @@ export const campaignBuildMission: Mission = {
           instruction: 'Review all three options. Keep the ones that are sound and flag the one that is not.',
           target: [
             { id: 'review-rev-copy', when: { screen: 'chat' }, caption: 'Judge each line on its merits' },
-            { id: 'nav-chat', caption: 'Back to the conversation' },
+            { id: 'chat-chat-1', caption: 'Back to the conversation' },
           ],
         },
         phone: {
           instruction: 'Review all three options. Keep the ones that are sound and flag the one that is not.',
           target: [
             { id: 'review-rev-copy', when: { screen: 'chat' }, caption: 'Judge each line on its merits' },
-            { id: 'tab-chat', caption: 'Back to Chat' },
+            { id: 'phone-new-chat', caption: 'Back to the conversation' },
           ],
         },
       },
@@ -1314,8 +1393,8 @@ export const campaignBuildMission: Mission = {
         { event: 'review-item', where: { itemId: 'v2', verdict: 'ok' } },
         { event: 'review-item', where: { itemId: 'v3', verdict: 'ok' } },
         { event: 'open-brief-field' },
-        { event: 'open-screen', where: { screen: 'context' } },
-        { event: 'open-screen', where: { screen: 'chat' } },
+        { event: 'open-artifact' },
+        { event: 'open-screen' },
       ],
       simulationResult: trackingPromptBeats,
       teach: {
@@ -1362,7 +1441,7 @@ export const campaignBuildMission: Mission = {
         },
       },
       expect: { event: 'send-message', evaluator: 'trackingPlan' },
-      allow: [{ event: 'open-brief-field' }, { event: 'open-screen', where: { screen: 'chat' } }],
+      allow: [{ event: 'open-brief-field' }, { event: 'open-screen' }],
       simulationResult: namingBeats,
       weakResult: [
         { delay: 150, action: { type: 'BUSY', busy: true } },
@@ -1413,19 +1492,19 @@ export const campaignBuildMission: Mission = {
           instruction: 'Answer the naming question in the conversation.',
           target: [
             { id: 'question-q-naming', when: { screen: 'chat' }, caption: 'Choose a convention' },
-            { id: 'nav-chat', caption: 'Back to the conversation' },
+            { id: 'chat-chat-1', caption: 'Back to the conversation' },
           ],
         },
         phone: {
           instruction: 'Answer the naming question in the conversation.',
           target: [
             { id: 'question-q-naming', when: { screen: 'chat' }, caption: 'Choose a convention' },
-            { id: 'tab-chat', caption: 'Back to Chat' },
+            { id: 'phone-new-chat', caption: 'Back to the conversation' },
           ],
         },
       },
       expect: { event: 'answer-question', where: { questionId: 'q-naming', optionId: 'structured' } },
-      allow: [{ event: 'open-brief-field' }, { event: 'open-screen', where: { screen: 'chat' } }],
+      allow: [{ event: 'open-brief-field' }, { event: 'open-screen' }],
       simulationResult: [
         { delay: 200, action: { type: 'BUSY', busy: true } },
         {
@@ -1530,19 +1609,19 @@ export const campaignBuildMission: Mission = {
           instruction: 'Answer the autonomy question in the conversation.',
           target: [
             { id: 'question-q-autonomy', when: { screen: 'chat' }, caption: 'Set the boundary' },
-            { id: 'nav-chat', caption: 'Back to the conversation' },
+            { id: 'chat-chat-1', caption: 'Back to the conversation' },
           ],
         },
         phone: {
           instruction: 'Answer the autonomy question in the conversation.',
           target: [
             { id: 'question-q-autonomy', when: { screen: 'chat' }, caption: 'Set the boundary' },
-            { id: 'tab-chat', caption: 'Back to Chat' },
+            { id: 'phone-new-chat', caption: 'Back to the conversation' },
           ],
         },
       },
       expect: { event: 'answer-question', where: { questionId: 'q-autonomy', optionId: 'asymmetric' } },
-      allow: [{ event: 'open-brief-field' }, { event: 'open-screen', where: { screen: 'chat' } }],
+      allow: [{ event: 'open-brief-field' }, { event: 'open-screen' }],
       simulationResult: preflightBeats,
       teach: { kind: 'flow', nodes: ['Reduces risk → automatic', 'Increases risk → human', 'Irreversible → human, always'] },
       deepDive: [
@@ -1579,14 +1658,14 @@ export const campaignBuildMission: Mission = {
           instruction: 'Verify each check. Mark the sound ones verified and flag the one that does not match.',
           target: [
             { id: 'review-rev-qa', when: { screen: 'chat' }, caption: 'Check every line' },
-            { id: 'nav-chat', caption: 'Back to the conversation' },
+            { id: 'chat-chat-1', caption: 'Back to the conversation' },
           ],
         },
         phone: {
           instruction: 'Verify each check. Mark the sound ones verified and flag the one that does not match.',
           target: [
             { id: 'review-rev-qa', when: { screen: 'chat' }, caption: 'Check every line' },
-            { id: 'tab-chat', caption: 'Back to Chat' },
+            { id: 'phone-new-chat', caption: 'Back to the conversation' },
           ],
         },
       },
@@ -1599,8 +1678,8 @@ export const campaignBuildMission: Mission = {
         { event: 'review-item', where: { itemId: 'qa-kill', verdict: 'ok' } },
         { event: 'review-item', where: { itemId: 'qa-claims', verdict: 'ok' } },
         { event: 'open-brief-field' },
-        { event: 'open-screen', where: { screen: 'brief' } },
-        { event: 'open-screen', where: { screen: 'chat' } },
+        { event: 'open-artifact' },
+        { event: 'open-screen' },
       ],
       simulationResult: approvalBeats,
       deepDive: [
@@ -1636,22 +1715,22 @@ export const campaignBuildMission: Mission = {
           instruction: 'Approve the launch.',
           target: [
             { id: 'btn-approve', when: { screen: 'chat' }, caption: 'Approve the launch' },
-            { id: 'nav-chat', caption: 'Back to the conversation' },
+            { id: 'chat-chat-1', caption: 'Back to the conversation' },
           ],
         },
         phone: {
           instruction: 'Approve the launch.',
           target: [
             { id: 'btn-approve', when: { screen: 'chat' }, caption: 'Approve the launch' },
-            { id: 'tab-chat', caption: 'Back to Chat' },
+            { id: 'phone-new-chat', caption: 'Back to the conversation' },
           ],
         },
       },
       expect: { event: 'approval-decision', where: { decision: 'approve' } },
       allow: [
         { event: 'open-brief-field' },
-        { event: 'open-screen', where: { screen: 'brief' } },
-        { event: 'open-screen', where: { screen: 'chat' } },
+        { event: 'open-artifact' },
+        { event: 'open-screen' },
       ],
       simulationResult: launchBeats,
     },

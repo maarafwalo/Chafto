@@ -16,32 +16,71 @@ nothing advances until they do.
 
 ---
 
+## Fidelity: the routes are the real routes
+
+The simulated app mirrors the real Claude apps' information architecture, so the
+paths you learn here are the paths you use there. That is the difference between
+a tutorial and practice.
+
+| In the simulator | In Claude |
+|---|---|
+| Sidebar: New chat, Search chats, Recents, Projects, account chip | Same |
+| Settings via **your initials, lower-left** → Connectors | Same |
+| **Settings → Connectors → Browse connectors** → Connect | Same |
+| **+** and **Search and tools** under the message box | Same |
+| Connectors toggled **per conversation** in that menu | Same |
+| Web search / Extended thinking / Research toggles | Same |
+| Model selector next to send | Same |
+| **Allow once / Always allow / Decline** tool prompt | Same as Claude Desktop and Cowork |
+| Project page: chats left, **Project knowledge** and **Instructions** on the right | Same |
+| Documents open as an **artifact panel** beside the chat, with versions | Same |
+| Phone: hamburger drawer, no bottom tab bar | Same |
+
+Every Guided step also carries an **IN THE REAL APP** line naming where that
+action lives in Claude today, so the transfer is explicit rather than hoped for.
+
+Two things are deliberately *not* copies: the assistant's mark is our own, and
+every screen is stamped `SIMULATED ENVIRONMENT`. Teaching the layout is the
+point; passing for the real product is not.
+
 ## Mission 01 — Teach Claude to Analyze Meta Ads
 
-The one mission built end to end for the MVP. Nine steps, 8–12 minutes:
+Twelve steps, 10–15 minutes, on the real navigation:
 
 | # | Step | Skill taught |
 |---|------|--------------|
-| 1 | Open Connectors | Connectors |
-| 2 | Pick the right connector (Windsor.ai) | MCP / integrations |
-| 3 | Read the scopes and authorise | Permissions |
-| 4 | **Type your own instruction** — evaluated locally | Prompting |
-| 5 | Open the tool call and read the request/result | Tool Use |
-| 6 | Answer a question about the analysis | Grounded answers |
-| 7 | Push the assistant from analysis to action | Agents |
-| 8 | Approve or reject the prepared campaign | Human-in-the-loop |
-| 9 | Read the receipt | Agent workflows |
+| 1 | Open **Search and tools** and see the empty tool list | Connectors |
+| 2 | Reach the directory via **Add connectors → Browse connectors** | Account vs. conversation |
+| 3 | Pick Windsor.ai and read what it exposes | Tools / MCP |
+| 4 | Read the scopes and allow access | Permissions |
+| 5 | **Switch it on for this conversation** | The step everyone misses |
+| 6 | **Type your own instruction** — evaluated locally | Prompting |
+| 7 | **Allow once / Always allow / Decline** | Human-in-the-loop |
+| 8 | Open the tool call and read the request/result | Tool Use |
+| 9 | Answer a question about the analysis | Grounded answers |
+| 10 | Push the assistant from analysis to action | Agents |
+| 11 | Approve or reject the prepared campaign | Human-in-the-loop |
+| 12 | Read the receipt | Agent workflows |
 
-Finishing it unlocks a **Challenge run**: the same world, compressed to four
-outcomes, with the Guide switched off and the draft request typed rather than
-picked from a suggestion.
+Steps 5 and 7 exist because the real product has them. Adding a connector and
+enabling it in a chat are two different acts in two different places, and
+skipping the second is the most common "I connected it but Claude can't see my
+data". The permission prompt is the seam between the model and the world.
+
+Finishing it unlocks a **Challenge run**: the same world, compressed to five
+outcomes, with the Guide switched off — including getting the connector added
+*and* enabled with no instructions.
 
 ## Mission 02 — Brief Claude to Build a Campaign — Every Detail
 
-The depth mission. Fourteen steps, 15–20 minutes, and the one that turns someone
+The depth mission. Fifteen steps, 15–20 minutes, and the one that turns someone
 into an operator rather than a user. It picks up where Mission 01 ends: the
-connector is already attached, and the question is no longer "can it reach my
-data" but "can I get a complete, defensible campaign out of it".
+connector is added and switched on, and the question is no longer "can it reach
+my data" but "can I get a complete, defensible campaign out of it".
+
+It runs inside a **Project**, because that is where this work belongs in the real
+app: facts go in **Project knowledge**, standing rules go in **Instructions**, and
+the brief Claude writes opens as an **artifact** beside the conversation.
 
 The artefact is a **sixteen-line campaign specification** — objective, success
 metric, audience, exclusions, budget, bid strategy, ramp, creative, copy, CTA,
@@ -52,20 +91,21 @@ mission is not finished until nothing is assumed.
 
 | # | Step | The lesson |
 |---|------|-----------|
-| 1 | Load the fact it cannot guess (unit economics) | Context is curated, not dumped — load what changes a decision |
-| 2 | Write a brief, not a wish | Outcome + constraint + deliverable |
-| 3 | Answer its three clarifying questions | Make it interrogate the requirement instead of assuming |
-| 4 | **Hunt the assumption** it filled in silently | Triage by what being wrong costs, not by what looks important |
-| 5 | Choose the audience from evidence | Best cost-per-purchase belongs to an audience too small to spend the budget |
-| 6 | Set the bid strategy | A constraint in your head is not a constraint |
-| 7 | **Reject the draft that invents a number** | Fluent output is not evidence |
-| 8 | Write the UTM tagging | The detail everyone skips, and cannot add retrospectively |
-| 9 | Pick a naming convention | Structured data pretending to be a string |
-| 10 | Design the test | Change one thing, or learn nothing |
-| 11 | Draw the autonomy line | Asymmetric autonomy: brakes alone, never the accelerator |
-| 12 | **Pre-flight — one line does not match** | The most common launch defect, invisible unless someone reads |
-| 13 | Sign it | An approval you could defend line by line |
-| 14 | Know when to kill it | Knowing when *not* to act is the same skill |
+| 1 | Add unit economics to **Project knowledge** | Context is curated, not dumped — load what changes a decision |
+| 2 | Set **Project instructions** | A rule written once beats a rule remembered every time |
+| 3 | Write a brief, not a wish | Outcome + constraint + deliverable |
+| 4 | Answer its three clarifying questions | Make it interrogate the requirement instead of assuming |
+| 5 | **Hunt the assumption** it filled in silently | Triage by what being wrong costs, not by what looks important |
+| 6 | Choose the audience from evidence | Best cost-per-purchase belongs to an audience too small to spend the budget |
+| 7 | Set the bid strategy | A constraint in your head is not a constraint |
+| 8 | **Reject the draft that invents a number** | Fluent output is not evidence |
+| 9 | Write the UTM tagging | The detail everyone skips, and cannot add retrospectively |
+| 10 | Pick a naming convention | Structured data pretending to be a string |
+| 11 | Design the test | Change one thing, or learn nothing |
+| 12 | Draw the autonomy line | Asymmetric autonomy: brakes alone, never the accelerator |
+| 13 | **Pre-flight — one line does not match** | The most common launch defect, invisible unless someone reads |
+| 14 | Sign it | An approval you could defend line by line |
+| 15 | Know when to kill it | Knowing when *not* to act is the same skill |
 
 Three of those steps are traps, and none of them are guessing games — the
 evidence needed to solve each one is on screen. In Guided mode the Guide tells
@@ -91,6 +131,8 @@ really opens the wrong connector; the Guide notices and coaches.
   (bottom sheets and a tab bar vs. a sidebar and modals). The same mission works
   in both and the Guide rewrites its instructions to match the active one. You can
   switch mid-mission.
+- **The real routes** — connectors added in Settings and enabled per chat, tool
+  permission prompts, projects, artifacts. See the fidelity table above.
 - **Spotlight overlay** — dims the simulated app, rings the exact target, numbers
   it, and anchors a caption bubble to it. It tracks the element every frame, so it
   stays welded on through scrolling, re-renders and device scaling.
@@ -152,8 +194,11 @@ src/
     connectors.ts      simulated connector catalogue
     catalog.ts         the 15-mission roadmap
   components/        layer 1 — the simulated app + the tutor
-    sim/               shells (phone/desktop), screens, conversation, connectors,
-                       campaign brief + context, questions, review blocks
+    sim/               SimApp (shells), Composer (+ / tools / model menus),
+                       Settings (connectors, directory, auth), Project
+                       (knowledge + instructions), Artifact (panel + card),
+                       Conversation (messages, tool calls, permission prompts,
+                       questions, review blocks, approvals)
     guide/             Guide panel, concept card, flow diagram, deep dive
     overlay/           Spotlight (dim, ring, bubble, pointer demo)
 ```
@@ -174,6 +219,7 @@ No UI changes. A step is:
   id, title, objective, actionType, concept, why, explanation, hint,
   successMessage, learning, xp,
   devices: { phone: { instruction, target[], note }, desktop: { ... } },
+  realWorld?: 'Settings → Connectors → Browse connectors',  // shown in the Guide
   expect: { event, where?, evaluator? },   // what counts as doing it
   allow?: [...],                           // on-path moves that are not mistakes
   simulationResult?: [...],                // scripted beats fired on success

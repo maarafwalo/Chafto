@@ -242,7 +242,8 @@ export function useMissionEngine(
         }
         // Only interactions that could plausibly have been the answer count as
         // mistakes — idle navigation inside an already-correct screen does not.
-        if (event.type === 'open-sheet' || event.type === 'close-sheet') return;
+        const navNoise = ['open-sheet', 'close-sheet', 'open-menu', 'close-menu'];
+        if (navNoise.includes(event.type)) return;
         registerWrong(
           current,
           learningMode === 'guided'

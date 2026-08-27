@@ -1,5 +1,7 @@
 import { useEffect, useRef } from 'react';
 import type { ReviewItem, SimEvent, SimMessage, SimState, ToolResult } from '../../engine/types';
+import { connectorById } from '../../data/connectors';
+import { ArtifactCard } from './Artifact';
 
 /* ------------------------------------------------------------------ */
 /* Tool call — the centrepiece of the simulation. Collapsed by default */
@@ -108,6 +110,69 @@ function ToolCall({
           ) : (
             <div className="tool-label">Waiting for the connector to respond…</div>
           )}
+        </div>
+      )}
+    </div>
+  );
+}
+
+/* ------------------------------------------------------------------ */
+/* Tool permission prompt — the real gate before a tool runs            */
+/* ------------------------------------------------------------------ */
+
+function Permission({
+  message,
+  emit,
+}: {
+  message: Extract<SimMessage, { kind: 'permission' }>;
+  emit: (e: SimEvent) => void;
+}) {
+  const connector = connectorById(message.connectorId);
+  const decided = message.decision !== 'pending';
+  return (
+    <div className="perm" data-decided={decided} data-sim-id={`permission-${message.id}`}>
+      <div className="perm-head">
+        <span className="conn-glyph perm-glyph" style={{ background: connector.tint }} aria-hidden>
+          {connector.glyph}
+        </span>
+        <div style={{ minWidth: 0 }}>
+          <div className="perm-title">Allow Claude to use this tool?</div>
+          <div className="perm-from">from {connector.name}</div>
+        </div>
+      </div>
+      <code className="perm-tool">{message.tool}</code>
+      <p className="perm-summary">{message.summary}</p>
+      {decided ? (
+        <div className="perm-decided">
+          {message.decision === 'deny'
+            ? '✕ Declined — the tool did not run'
+            : message.decision === 'always'
+              ? '✓ Allowed for this conversation'
+              : '✓ Allowed once'}
+        </div>
+      ) : (
+        <div className="perm-actions">
+          <button
+            className="sbtn sbtn-primary"
+            data-sim-id="perm-once"
+            onClick={() => emit({ type: 'permission-decision', payload: { id: message.id, decision: 'once' } })}
+          >
+            Allow once
+          </button>
+          <button
+            className="sbtn"
+            data-sim-id="perm-always"
+            onClick={() => emit({ type: 'permission-decision', payload: { id: message.id, decision: 'always' } })}
+          >
+            Always allow
+          </button>
+          <button
+            className="sbtn sbtn-ghost"
+            data-sim-id="perm-deny"
+            onClick={() => emit({ type: 'permission-decision', payload: { id: message.id, decision: 'deny' } })}
+          >
+            Decline
+          </button>
         </div>
       )}
     </div>
@@ -359,6 +424,10 @@ export function Conversation({
                   open={sim.expandedTools.includes(m.id)}
                   onToggle={() => emit({ type: 'inspect-tool-call', payload: { id: m.id } })}
                 />
+              )}
+              {m.kind === 'permission' && <Permission message={m} emit={emit} />}
+              {m.kind === 'artifact-card' && (
+                <ArtifactCard title={m.title} subtitle={m.subtitle} version={m.version} emit={emit} />
               )}
               {m.kind === 'question' && <Question message={m} emit={emit} />}
               {m.kind === 'review' && <Review message={m} emit={emit} />}

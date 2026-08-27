@@ -102,6 +102,15 @@ export type SimEventType =
   | 'toggle-permission'
   | 'attach-file'
   | 'quiz-answer'
+  | 'open-menu'
+  | 'close-menu'
+  | 'open-settings'
+  | 'toggle-chat-connector'
+  | 'toggle-capability'
+  | 'permission-decision'
+  | 'open-artifact'
+  | 'set-instructions'
+  | 'new-chat'
   | 'answer-question'
   | 'open-brief-field'
   | 'review-item'
@@ -117,15 +126,26 @@ export interface SimEvent<P = Record<string, unknown>> {
 /* Simulation state                                                    */
 /* ------------------------------------------------------------------ */
 
-export type SimScreen =
-  | 'chat'
-  | 'connectors'
-  | 'connector-detail'
-  | 'files'
-  | 'settings'
-  | 'brief'
-  | 'context';
-export type SimSheet = 'none' | 'plus' | 'catalog' | 'auth' | 'menu';
+/**
+ * Screens mirror the real Claude apps: a conversation, a project page, and a
+ * settings page. Connectors are not a destination — they live inside Settings,
+ * and are switched on per conversation from the composer, exactly as they are
+ * in the product.
+ */
+export type SimScreen = 'chat' | 'project' | 'settings' | 'connector-detail';
+
+/** Overlays: composer menus, the connector directory, auth, the mobile drawer. */
+export type SimSheet =
+  | 'none'
+  | 'plus'
+  | 'tools'
+  | 'directory'
+  | 'auth'
+  | 'account'
+  | 'drawer'
+  | 'instructions';
+
+export type SettingsSection = 'connectors' | 'capabilities' | 'profile';
 
 export type ConnectorStatus = 'available' | 'connecting' | 'connected';
 
@@ -270,6 +290,24 @@ export type SimMessage =
       mode: 'variants' | 'checklist';
       items: ReviewItem[];
     }
+  | {
+      id: string;
+      role: 'assistant';
+      kind: 'permission';
+      /** The tool the model is asking to run, as the real prompt shows it. */
+      tool: string;
+      connectorId: string;
+      summary: string;
+      decision: 'pending' | 'once' | 'always' | 'deny';
+    }
+  | {
+      id: string;
+      role: 'assistant';
+      kind: 'artifact-card';
+      title: string;
+      subtitle: string;
+      version: number;
+    }
   | { id: string; role: 'system'; kind: 'notice'; text: string };
 
 export interface Suggestion {
@@ -281,8 +319,27 @@ export interface Suggestion {
 export interface SimState {
   screen: SimScreen;
   sheet: SimSheet;
+  settingsSection: SettingsSection;
   activeConnectorId: string | null;
+  /** Account-level: the connector has been added to the workspace. */
   connectorStatus: Record<string, ConnectorStatus>;
+  /**
+   * Per-conversation: which connected tools this chat may actually use.
+   * Adding a connector and enabling it in a chat are two separate acts in the
+   * real product, and forgetting the second is the most common stumble there is.
+   */
+  chatConnectors: string[];
+  /** Settings → Capabilities toggles, plus the per-chat tool switches. */
+  capabilities: Record<string, boolean>;
+  model: string;
+  chats: { id: string; title: string; project?: string }[];
+  activeChatId: string;
+  project: { id: string; name: string; description: string; instructions: string | null } | null;
+  /** Whether the current conversation sits inside the project. */
+  inProject: boolean;
+  /** The artifact panel beside the conversation. */
+  artifactOpen: boolean;
+  artifactVersion: number;
   /** Tool permission switches shown on a connected connector's detail screen. */
   permissions: Record<string, boolean>;
   messages: SimMessage[];
@@ -325,7 +382,15 @@ export type SimAction =
   | { type: 'ADD_CONTEXT'; id: string }
   | { type: 'OPEN_FIELD'; id: string | null }
   | { type: 'ANSWER_QUESTION'; id: string; optionId: string }
-  | { type: 'REVIEW_VERDICT'; messageId: string; itemId: string; verdict: 'ok' | 'flag' };
+  | { type: 'REVIEW_VERDICT'; messageId: string; itemId: string; verdict: 'ok' | 'flag' }
+  | { type: 'SETTINGS_SECTION'; section: SettingsSection }
+  | { type: 'CHAT_CONNECTOR'; id: string; on: boolean }
+  | { type: 'CAPABILITY'; key: string; on: boolean }
+  | { type: 'MODEL'; model: string }
+  | { type: 'PERMISSION_DECISION'; id: string; decision: 'once' | 'always' | 'deny' }
+  | { type: 'ARTIFACT'; open: boolean; version?: number }
+  | { type: 'INSTRUCTIONS'; text: string }
+  | { type: 'NEW_CHAT'; id: string; title: string; inProject: boolean };
 
 /* ------------------------------------------------------------------ */
 /* Mission content                                                     */
@@ -345,6 +410,14 @@ export interface SimContext {
   openField: string | null;
   /** The first question still waiting on an answer — lets a step follow a form. */
   pendingQuestion: string | null;
+  settingsSection: SettingsSection;
+  /** Whether the marketing connector is switched on for this conversation. */
+  windsorInChat: boolean;
+  artifactOpen: boolean;
+  inProject: boolean;
+  hasInstructions: boolean;
+  /** The permission prompt still awaiting a decision, if any. */
+  pendingPermission: string | null;
   /** How complete the specification is — used for targeting and for the Guide. */
   briefComplete: boolean;
 }
@@ -417,6 +490,11 @@ export interface MissionStep {
   hint: string;
   /** Confirmation after the learner gets it right. */
   successMessage: string;
+  /**
+   * Where this action lives in the real Claude apps today, in one line. Shown
+   * in the Guide so the muscle memory transfers out of the simulator.
+   */
+  realWorld?: string;
   /** What the learner is practising, shown as chips. */
   learning: SkillId[];
   xp: number;

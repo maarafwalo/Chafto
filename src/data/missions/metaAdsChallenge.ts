@@ -1,9 +1,11 @@
 import type { Mission } from '../../engine/types';
 import {
   analysisBeats,
+  denyBeats,
   draftBeats,
   executeBeats,
   fetchDataBeats,
+  permissionBeats,
   rejectBeats,
 } from './metaAds';
 
@@ -30,42 +32,47 @@ export const metaAdsChallengeMission: Mission = {
     {
       id: 'c1',
       title: 'Give Claude access to the ad data',
-      objective: 'Claude cannot see your campaigns yet. Fix that.',
+      objective: 'Claude cannot see your campaigns yet. Fix that — all of it.',
       actionType: 'navigate',
-      why: 'Nothing else in this mission is possible until the model can reach the data.',
-      explanation: 'Connectors screen → add → Windsor.ai → authorise.',
-      hint: 'Connectors live in the sidebar on desktop, behind + on phone. You want the marketing-data one.',
-      successMessage: 'Connected, unaided.',
+      why: 'Nothing else in this mission is possible until the model can reach the data in this chat.',
+      explanation: 'Settings → Connectors → Browse → Windsor.ai → allow, then switch it on for the conversation.',
+      hint: 'Two acts, two places: add it to the account in Settings → Connectors, then switch it on in the composer’s Search and tools menu.',
+      successMessage: 'Connected and switched on, unaided.',
+      realWorld: 'Settings → Connectors → Browse connectors, then + / Search and tools → toggle it on for the chat.',
       learning: ['connectors'],
-      xp: 120,
+      xp: 160,
       devices: {
         desktop: {
-          instruction: 'Connect the marketing-data connector.',
+          instruction: 'Get the marketing-data connector working in this conversation.',
           target: [
-            { id: 'btn-authorize', when: { sheet: 'auth' }, caption: 'Authorise' },
-            { id: 'connector-card-windsor', when: { sheet: 'catalog' }, caption: 'Windsor.ai' },
+            { id: 'chat-connector-windsor', when: { sheet: 'tools' }, caption: 'Turn it on here' },
+            { id: 'btn-authorize', when: { sheet: 'auth' }, caption: 'Allow access' },
+            { id: 'connector-card-windsor', when: { sheet: 'directory' }, caption: 'Windsor.ai' },
             { id: 'btn-connect', when: { screen: 'connector-detail' }, caption: 'Connect' },
-            { id: 'btn-add-connector', when: { screen: 'connectors' }, caption: 'Add connector' },
-            { id: 'nav-connectors', caption: 'Connectors' },
+            { id: 'btn-browse-connectors', when: { screen: 'settings' }, caption: 'Browse connectors' },
+            { id: 'composer-tools', caption: 'Search and tools' },
           ],
         },
         phone: {
-          instruction: 'Connect the marketing-data connector.',
+          instruction: 'Get the marketing-data connector working in this conversation.',
           target: [
-            { id: 'btn-authorize', when: { sheet: 'auth' }, caption: 'Authorise' },
-            { id: 'connector-card-windsor', when: { sheet: 'catalog' }, caption: 'Windsor.ai' },
+            { id: 'chat-connector-windsor', when: { sheet: 'tools' }, caption: 'Turn it on here' },
+            { id: 'btn-authorize', when: { sheet: 'auth' }, caption: 'Allow access' },
+            { id: 'connector-card-windsor', when: { sheet: 'directory' }, caption: 'Windsor.ai' },
             { id: 'btn-connect', when: { screen: 'connector-detail' }, caption: 'Connect' },
-            { id: 'btn-add-connector', when: { screen: 'connectors' }, caption: 'Add connector' },
-            { id: 'phone-plus', caption: 'Tap +' },
+            { id: 'btn-browse-connectors', when: { screen: 'settings' }, caption: 'Browse connectors' },
+            { id: 'composer-tools', caption: 'Tools menu' },
           ],
         },
       },
-      expect: { event: 'authorize-connector', where: { id: 'windsor' } },
+      expect: { event: 'toggle-chat-connector', where: { id: 'windsor', on: true } },
       allow: [
-        { event: 'open-screen', where: { screen: 'connectors' } },
-        { event: 'open-screen', where: { screen: 'chat' } },
+        { event: 'open-screen' },
+        { event: 'open-settings' },
+        { event: 'open-menu' },
         { event: 'select-connector', where: { id: 'windsor' } },
         { event: 'connect-connector', where: { id: 'windsor' } },
+        { event: 'authorize-connector', where: { id: 'windsor' } },
       ],
     },
     {
@@ -82,22 +89,16 @@ export const metaAdsChallengeMission: Mission = {
       devices: {
         desktop: {
           instruction: 'Ask Claude for the analysis.',
-          target: [
-            { id: 'composer-input', when: { screen: 'chat' }, caption: 'Write your instruction' },
-            { id: 'nav-chat', caption: 'Conversation' },
-          ],
+          target: [{ id: 'composer-input', caption: 'Write your instruction' }],
         },
         phone: {
           instruction: 'Ask Claude for the analysis.',
-          target: [
-            { id: 'composer-input', when: { screen: 'chat' }, caption: 'Write your instruction' },
-            { id: 'tab-chat', caption: 'Chat' },
-          ],
+          target: [{ id: 'composer-input', caption: 'Write your instruction' }],
         },
       },
       expect: { event: 'send-message', evaluator: 'analyzeCampaigns' },
-      allow: [{ event: 'open-screen', where: { screen: 'chat' } }, { event: 'inspect-tool-call' }],
-      simulationResult: [...fetchDataBeats, ...analysisBeats.map((b) => ({ ...b, delay: b.delay + 3100 }))],
+      allow: [{ event: 'open-screen' }, { event: 'open-menu' }, { event: 'inspect-tool-call' }],
+      simulationResult: permissionBeats,
       weakResult: [
         { delay: 150, action: { type: 'BUSY', busy: true } },
         {
@@ -113,6 +114,32 @@ export const metaAdsChallengeMission: Mission = {
           },
         },
         { delay: 1050, action: { type: 'BUSY', busy: false } },
+      ],
+    },
+    {
+      id: 'c2b',
+      title: 'Clear the tool prompt',
+      objective: 'Claude has asked to run something. Decide.',
+      actionType: 'decide',
+      why: 'Nothing runs until you say so.',
+      explanation: 'Allow once is the safe default for a read-only tool.',
+      hint: 'The request is in the conversation, with three buttons.',
+      successMessage: 'Cleared.',
+      learning: ['safety'],
+      xp: 90,
+      devices: {
+        desktop: { instruction: 'Resolve the tool request.', target: [{ id: 'perm-once', caption: 'Allow once' }] },
+        phone: { instruction: 'Resolve the tool request.', target: [{ id: 'perm-once', caption: 'Allow once' }] },
+      },
+      expect: { event: 'permission-decision', where: { decision: 'once' } },
+      allow: [
+        { event: 'permission-decision', where: { decision: 'always' } },
+        { event: 'permission-decision', where: { decision: 'deny' }, then: denyBeats },
+        { event: 'inspect-tool-call' },
+      ],
+      simulationResult: [
+        ...fetchDataBeats,
+        ...analysisBeats.map((b) => ({ ...b, delay: b.delay + 2400 })),
       ],
     },
     {

@@ -23,6 +23,11 @@ export function GuidePanel({ engine: e }: { engine: MissionEngine }) {
   const instruction = step ? step.devices[device].instruction : '';
   const note = step ? step.devices[device].note : undefined;
   const guided = learningMode === 'guided';
+  /**
+   * The artifact is a plain document, as it is in the real product. The teaching
+   * annotation for a selected line belongs here, in the tutor, not inside it.
+   */
+  const selected = e.sim.brief.find((f) => f.id === e.sim.openField);
 
   const xpSoFar = Object.values(engine.records).reduce((a, r) => a + r.xpEarned, 0);
 
@@ -108,6 +113,12 @@ export function GuidePanel({ engine: e }: { engine: MissionEngine }) {
             <p className="do-label">{guided ? 'Do this' : 'Your objective'}</p>
             <p className="do-text">{guided ? instruction : step.objective}</p>
             {guided && note && <p className="do-note">{note}</p>}
+            {guided && step.realWorld && (
+              <p className="do-real">
+                <span className="do-real-tag">IN THE REAL APP</span>
+                {step.realWorld}
+              </p>
+            )}
             {!guided && (
               <p className="do-note">
                 {learningMode === 'practice'
@@ -116,6 +127,34 @@ export function GuidePanel({ engine: e }: { engine: MissionEngine }) {
               </p>
             )}
           </div>
+
+          {selected && (
+            <div className="annot">
+              <p className="do-label">About this line</p>
+              <p className="annot-name">{selected.label}</p>
+              <p className="annot-sub">{selected.value ?? 'Not decided yet'}</p>
+              <div className="annot-block">
+                <span className="annot-k">Why it exists</span>
+                <p>{selected.why}</p>
+              </div>
+              <div className="annot-block">
+                <span className="annot-k">What goes wrong</span>
+                <p className="annot-risk">{selected.risk}</p>
+              </div>
+              {selected.source && (
+                <div className="annot-block">
+                  <span className="annot-k">Where the value came from</span>
+                  <p>{selected.source}</p>
+                </div>
+              )}
+              {selected.status === 'assumed' && (
+                <p className="annot-warn">
+                  Nobody decided this. Claude filled the blank to keep the plan coherent — reasonable,
+                  and exactly why it is labelled rather than hidden.
+                </p>
+              )}
+            </div>
+          )}
 
           {engine.feedback && (
             <div className={`ribbon ${engine.feedback.tone === 'wrong' ? 'ribbon-warn' : 'ribbon-hint'}`}>

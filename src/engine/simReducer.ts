@@ -18,6 +18,7 @@ export const resetIds = () => {
 export const initialSimState = (): SimState => ({
   screen: 'chat',
   sheet: 'none',
+  settingsSection: 'connectors',
   activeConnectorId: null,
   connectorStatus: Object.fromEntries(
     CONNECTORS.map((c) => [c.id, 'available' as ConnectorStatus]),
@@ -26,6 +27,15 @@ export const initialSimState = (): SimState => ({
     'windsor.get_campaign_performance()': true,
     'windsor.create_campaign_draft()': true,
   },
+  chatConnectors: [],
+  capabilities: { artifacts: true, webSearch: true, extendedThinking: false, research: false },
+  model: 'Claude Opus 5',
+  chats: [{ id: 'chat-1', title: 'New chat' }],
+  activeChatId: 'chat-1',
+  project: null,
+  inProject: false,
+  artifactOpen: false,
+  artifactVersion: 1,
   messages: [
     {
       id: 'm-welcome',
@@ -130,6 +140,50 @@ export function simReducer(state: SimState, action: SimAction): SimState {
             : m,
         ),
       };
+    case 'SETTINGS_SECTION':
+      return { ...state, settingsSection: action.section };
+    case 'CHAT_CONNECTOR':
+      return {
+        ...state,
+        chatConnectors: action.on
+          ? Array.from(new Set([...state.chatConnectors, action.id]))
+          : state.chatConnectors.filter((c) => c !== action.id),
+      };
+    case 'CAPABILITY':
+      return { ...state, capabilities: { ...state.capabilities, [action.key]: action.on } };
+    case 'MODEL':
+      return { ...state, model: action.model };
+    case 'PERMISSION_DECISION':
+      return {
+        ...state,
+        messages: state.messages.map((m) =>
+          m.id === action.id && m.kind === 'permission' ? { ...m, decision: action.decision } : m,
+        ),
+      };
+    case 'ARTIFACT':
+      return {
+        ...state,
+        artifactOpen: action.open,
+        artifactVersion: action.version ?? state.artifactVersion,
+      };
+    case 'INSTRUCTIONS':
+      return {
+        ...state,
+        sheet: 'none',
+        project: state.project ? { ...state.project, instructions: action.text } : state.project,
+      };
+    case 'NEW_CHAT':
+      return {
+        ...state,
+        screen: 'chat',
+        sheet: 'none',
+        activeChatId: action.id,
+        inProject: action.inProject,
+        chats: [{ id: action.id, title: action.title }, ...state.chats],
+        // A new conversation starts with no tools enabled — same as the product.
+        chatConnectors: [],
+        messages: [],
+      };
     default:
       return state;
   }
@@ -148,9 +202,37 @@ export function eventToActions(event: SimEvent, _state: SimState): SimAction[] {
     case 'open-screen':
       return [{ type: 'NAV', screen: p.screen as SimState['screen'] }];
     case 'open-sheet':
-      return [{ type: 'SHEET', sheet: p.sheet as SimState['sheet'] }];
+    case 'open-menu':
+      return [{ type: 'SHEET', sheet: (p.menu ?? p.sheet) as SimState['sheet'] }];
     case 'close-sheet':
+    case 'close-menu':
       return [{ type: 'SHEET', sheet: 'none' }];
+    case 'open-settings':
+      return [
+        { type: 'SHEET', sheet: 'none' },
+        { type: 'NAV', screen: 'settings' },
+        { type: 'SETTINGS_SECTION', section: (p.section as 'connectors') ?? 'connectors' },
+      ];
+    case 'toggle-chat-connector':
+      return [{ type: 'CHAT_CONNECTOR', id: p.id as string, on: p.on as boolean }];
+    case 'toggle-capability':
+      return [{ type: 'CAPABILITY', key: p.key as string, on: p.on as boolean }];
+    case 'permission-decision':
+      return [
+        {
+          type: 'PERMISSION_DECISION',
+          id: p.id as string,
+          decision: p.decision as 'once' | 'always' | 'deny',
+        },
+      ];
+    case 'open-artifact':
+      return [{ type: 'ARTIFACT', open: p.open !== false }];
+    case 'set-instructions':
+      return [{ type: 'INSTRUCTIONS', text: p.text as string }];
+    case 'new-chat':
+      return [
+        { type: 'NEW_CHAT', id: nextId('chat'), title: 'New chat', inProject: p.inProject === true },
+      ];
     case 'select-connector':
       return [
         { type: 'ACTIVE_CONNECTOR', id: p.id as string },
@@ -168,7 +250,13 @@ export function eventToActions(event: SimEvent, _state: SimState): SimAction[] {
         { type: 'SHEET', sheet: 'none' },
         {
           type: 'TOAST',
-          toast: { id: nextId('toast'), text: 'Connector added — 2 tools available', tone: 'ok' },
+          toast: {
+            id: nextId('toast'),
+            // Deliberately says "added", not "enabled" — the second half is the
+            // per-chat switch, and the product does not do it for you either.
+            text: 'Connector added to your account',
+            tone: 'ok',
+          },
         },
       ];
     case 'disconnect-connector':
@@ -198,7 +286,8 @@ export function eventToActions(event: SimEvent, _state: SimState): SimAction[] {
     case 'open-brief-field':
       return [{ type: 'OPEN_FIELD', id: (p.fieldId as string) ?? null }];
     case 'add-context':
-      return [{ type: 'ADD_CONTEXT', id: p.id as string }];
+      // The picker closes once something is chosen, the way a file dialog does.
+      return [{ type: 'ADD_CONTEXT', id: p.id as string }, { type: 'SHEET', sheet: 'none' }];
     case 'answer-question':
       return [
         { type: 'ANSWER_QUESTION', id: p.questionId as string, optionId: p.optionId as string },
@@ -231,10 +320,17 @@ export function toContext(state: SimState, device: SimContext['device']): SimCon
   const approval = [...state.messages].reverse().find((m) => m.kind === 'approval');
   const unresolved = state.brief.filter((f: BriefField) => f.status !== 'confirmed');
   const pending = state.messages.find((m) => m.kind === 'question' && m.answered === null);
+  const perm = state.messages.find((m) => m.kind === 'permission' && m.decision === 'pending');
   return {
     device,
     openField: state.openField,
     pendingQuestion: pending ? pending.id : null,
+    pendingPermission: perm ? perm.id : null,
+    settingsSection: state.settingsSection,
+    windsorInChat: state.chatConnectors.includes('windsor'),
+    artifactOpen: state.artifactOpen,
+    inProject: state.inProject,
+    hasInstructions: !!state.project?.instructions,
     briefComplete: state.brief.length > 0 && unresolved.length === 0,
     screen: state.screen,
     sheet: state.sheet,
