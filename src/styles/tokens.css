@@ -1,0 +1,115 @@
+/* Design tokens.
+   Two palettes live in this product on purpose:
+   --  the STUDIO (dark, warm) is the learning product itself;
+   --  the SIM (light, paper) is the simulated AI app inside it.
+   Keeping them visually distinct is what stops learners confusing the tutor
+   with the thing being taught. */
+
+:root {
+  color-scheme: dark;
+
+  /* Studio */
+  --bg: #131110;
+  --bg-2: #1a1715;
+  --panel: #201c1a;
+  --panel-2: #262220;
+  --line: rgba(255, 255, 255, 0.09);
+  --line-strong: rgba(255, 255, 255, 0.16);
+  --ink: #f2ece4;
+  --ink-2: #b6ada2;
+  --ink-3: #7d746b;
+
+  --accent: #e07856;
+  --accent-soft: rgba(224, 120, 86, 0.14);
+  --accent-line: rgba(224, 120, 86, 0.42);
+  --amber: #e3b778;
+  --green: #6fbf8e;
+  --green-soft: rgba(111, 191, 142, 0.14);
+  --red: #e2705f;
+  --blue: #79a8e8;
+
+  /* Simulated app */
+  --sim-bg: #faf7f3;
+  --sim-panel: #ffffff;
+  --sim-rail: #f2ede6;
+  --sim-line: #e5ddd2;
+  --sim-line-2: #d6cbbc;
+  --sim-ink: #241f1b;
+  --sim-ink-2: #6b6259;
+  --sim-ink-3: #9a9086;
+  --sim-accent: #c85f3c;
+  --sim-accent-soft: #fbeee8;
+
+  --radius-s: 8px;
+  --radius: 14px;
+  --radius-l: 20px;
+  --radius-xl: 28px;
+
+  --shadow-1: 0 1px 2px rgba(0, 0, 0, 0.24);
+  --shadow-2: 0 10px 30px -12px rgba(0, 0, 0, 0.55);
+  --shadow-3: 0 30px 70px -24px rgba(0, 0, 0, 0.7);
+
+  --font: 'Inter', ui-sans-serif, system-ui, -apple-system, 'Segoe UI', sans-serif;
+  --font-display: 'Fraunces', 'Iowan Old Style', Georgia, serif;
+  --font-mono: 'JetBrains Mono', ui-monospace, 'SF Mono', Menlo, monospace;
+
+  --ease: cubic-bezier(0.22, 0.61, 0.36, 1);
+}
+
+* { box-sizing: border-box; }
+
+html, body, #root { height: 100%; }
+
+body {
+  margin: 0;
+  background: var(--bg);
+  color: var(--ink);
+  font-family: var(--font);
+  font-size: 15px;
+  line-height: 1.55;
+  -webkit-font-smoothing: antialiased;
+  text-rendering: optimizeLegibility;
+  overscroll-behavior: none;
+}
+
+h1, h2, h3, h4 { margin: 0; font-weight: 600; letter-spacing: -0.02em; }
+p { margin: 0; }
+button { font: inherit; color: inherit; }
+input, textarea { font: inherit; }
+
+::selection { background: var(--accent); color: #fff; }
+
+:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 2px;
+  border-radius: 4px;
+}
+
+/* Scrollbars — thin and unobtrusive in both palettes. */
+.scroll { scrollbar-width: thin; scrollbar-color: var(--line-strong) transparent; }
+.scroll::-webkit-scrollbar { width: 9px; height: 9px; }
+.scroll::-webkit-scrollbar-thumb {
+  background: var(--line-strong);
+  border-radius: 9px;
+  border: 3px solid transparent;
+  background-clip: padding-box;
+}
+.scroll::-webkit-scrollbar-track { background: transparent; }
+
+.eyebrow {
+  font-size: 10.5px;
+  font-weight: 700;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  color: var(--ink-3);
+}
+
+.mono { font-family: var(--font-mono); }
+
+@media (prefers-reduced-motion: reduce) {
+  *, *::before, *::after {
+    animation-duration: 0.001ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.001ms !important;
+  }
+}

@@ -1,0 +1,446 @@
+/**
+ * Core domain types for the AI Skill Simulator.
+ *
+ * The product is split into three cooperating layers:
+ *
+ *   1. SIMULATION  — a fake AI application (`SimState` + `simReducer`). It knows
+ *                    nothing about missions or teaching. It just behaves like an app.
+ *   2. MISSION     — structured data (`Mission` / `MissionStep`). Pure JSON-ish content.
+ *                    Missions never import UI code.
+ *   3. ENGINE      — `missionEngine` wires the two together: it listens to semantic
+ *                    events coming out of the simulation, decides whether the learner
+ *                    did the expected thing, keeps score, and drives the Guide.
+ *
+ * Adding a new mission therefore means adding one data file. Swapping the local
+ * simulation for a real API later means replacing layer 1 only.
+ */
+
+/* ------------------------------------------------------------------ */
+/* Modes                                                               */
+/* ------------------------------------------------------------------ */
+
+/** Which simulated form factor the learner is practising in. */
+export type DeviceMode = 'phone' | 'desktop';
+
+/**
+ * How much help the Guide gives.
+ * guided    → exact instruction + permanent highlight.
+ * practice  → objective + hints on demand, highlight only after a request.
+ * challenge → objective only. Hints unlock after repeated mistakes.
+ */
+export type LearningMode = 'guided' | 'practice' | 'challenge';
+
+export const LEARNING_MODES: Record<
+  LearningMode,
+  { id: LearningMode; label: string; blurb: string; assistCost: number }
+> = {
+  guided: {
+    id: 'guided',
+    label: 'Guided',
+    blurb: 'The Guide tells you exactly what to do and where to click.',
+    assistCost: 0,
+  },
+  practice: {
+    id: 'practice',
+    label: 'Practice',
+    blurb: 'You get the objective. Hints are there if you ask for them.',
+    assistCost: 0.25,
+  },
+  challenge: {
+    id: 'challenge',
+    label: 'Challenge',
+    blurb: 'Only the goal. No instructions. Prove you can do it alone.',
+    assistCost: 0.5,
+  },
+};
+
+/* ------------------------------------------------------------------ */
+/* Skills                                                              */
+/* ------------------------------------------------------------------ */
+
+export type SkillId =
+  | 'prompting'
+  | 'toolUse'
+  | 'connectors'
+  | 'agents'
+  | 'automation'
+  | 'dataAnalysis'
+  | 'safety';
+
+export const SKILLS: Record<SkillId, { id: SkillId; label: string; max: number }> = {
+  prompting: { id: 'prompting', label: 'Prompting', max: 300 },
+  toolUse: { id: 'toolUse', label: 'Tool Use', max: 300 },
+  connectors: { id: 'connectors', label: 'Connectors', max: 300 },
+  agents: { id: 'agents', label: 'Agents', max: 300 },
+  automation: { id: 'automation', label: 'Automation', max: 300 },
+  dataAnalysis: { id: 'dataAnalysis', label: 'Data Analysis', max: 300 },
+  safety: { id: 'safety', label: 'Human-in-the-loop', max: 300 },
+};
+
+/* ------------------------------------------------------------------ */
+/* Semantic events emitted by the simulation                           */
+/* ------------------------------------------------------------------ */
+
+/**
+ * Everything the learner does inside the simulated app is described by one of
+ * these. The simulation reduces them into new state; the mission engine matches
+ * them against the current step. Nothing else may drive progress — which is what
+ * keeps "the Guide always knows the UI state" true by construction.
+ */
+export type SimEventType =
+  | 'open-screen'
+  | 'open-sheet'
+  | 'close-sheet'
+  | 'select-connector'
+  | 'connect-connector'
+  | 'authorize-connector'
+  | 'disconnect-connector'
+  | 'send-message'
+  | 'use-suggestion'
+  | 'inspect-tool-call'
+  | 'approval-decision'
+  | 'toggle-permission'
+  | 'attach-file'
+  | 'quiz-answer'
+  | 'acknowledge';
+
+export interface SimEvent<P = Record<string, unknown>> {
+  type: SimEventType;
+  payload?: P;
+}
+
+/* ------------------------------------------------------------------ */
+/* Simulation state                                                    */
+/* ------------------------------------------------------------------ */
+
+export type SimScreen = 'chat' | 'connectors' | 'connector-detail' | 'files' | 'settings';
+export type SimSheet = 'none' | 'plus' | 'catalog' | 'auth' | 'menu';
+
+export type ConnectorStatus = 'available' | 'connecting' | 'connected';
+
+export interface ConnectorDef {
+  id: string;
+  name: string;
+  category: string;
+  blurb: string;
+  glyph: string;
+  tint: string;
+  /** Tools this connector would expose to the model once connected. */
+  tools: { name: string; description: string }[];
+  scopes: string[];
+}
+
+export interface CampaignRow {
+  id: string;
+  name: string;
+  spend: string;
+  ctr: string;
+  cpa: string;
+  roas: string;
+  best?: boolean;
+}
+
+export interface CampaignDraft {
+  name: string;
+  budget: string;
+  audience: string;
+  creative: string;
+  objective: string;
+  basedOn: string;
+}
+
+export type ToolResult =
+  | { kind: 'campaigns'; rows: CampaignRow[]; note: string }
+  | { kind: 'draft'; draft: CampaignDraft }
+  | { kind: 'created'; draft: CampaignDraft; reference: string };
+
+export type SimMessage =
+  | { id: string; role: 'user'; kind: 'text'; text: string }
+  | {
+      id: string;
+      role: 'assistant';
+      kind: 'text';
+      text: string;
+      /** Substrings rendered as emphasised "evidence" chips inside the bubble. */
+      evidence?: string[];
+      thinking?: boolean;
+    }
+  | {
+      id: string;
+      role: 'assistant';
+      kind: 'tool';
+      tool: string;
+      args: string;
+      status: 'running' | 'done' | 'error';
+      result?: ToolResult;
+      connectorId: string;
+    }
+  | {
+      id: string;
+      role: 'assistant';
+      kind: 'approval';
+      title: string;
+      summary: string;
+      draft: CampaignDraft;
+      status: 'pending' | 'approved' | 'rejected';
+    }
+  | { id: string; role: 'system'; kind: 'notice'; text: string };
+
+export interface Suggestion {
+  id: string;
+  label: string;
+  text: string;
+}
+
+export interface SimState {
+  screen: SimScreen;
+  sheet: SimSheet;
+  activeConnectorId: string | null;
+  connectorStatus: Record<string, ConnectorStatus>;
+  /** Tool permission switches shown on a connected connector's detail screen. */
+  permissions: Record<string, boolean>;
+  messages: SimMessage[];
+  composer: string;
+  /** Assistant is "thinking" — blocks the composer, shows a typing indicator. */
+  busy: boolean;
+  expandedTools: string[];
+  suggestions: Suggestion[];
+  toast: { id: string; text: string; tone: 'ok' | 'info' } | null;
+  files: { id: string; name: string; meta: string }[];
+}
+
+/* Simulation actions (internal to the simulation layer). */
+export type SimAction =
+  | { type: 'RESET'; state?: Partial<SimState> }
+  | { type: 'NAV'; screen: SimScreen }
+  | { type: 'SHEET'; sheet: SimSheet }
+  | { type: 'ACTIVE_CONNECTOR'; id: string | null }
+  | { type: 'CONNECTOR_STATUS'; id: string; status: ConnectorStatus }
+  | { type: 'PERMISSION'; key: string; value: boolean }
+  | { type: 'COMPOSER'; text: string }
+  | { type: 'PUSH_MESSAGE'; message: SimMessage }
+  | { type: 'PATCH_MESSAGE'; id: string; patch: Record<string, unknown> }
+  | { type: 'EXPAND_TOOL'; id: string }
+  | { type: 'BUSY'; busy: boolean }
+  | { type: 'SUGGESTIONS'; suggestions: Suggestion[] }
+  | { type: 'TOAST'; toast: SimState['toast'] }
+  | { type: 'ATTACH_FILE'; file: { id: string; name: string; meta: string } };
+
+/* ------------------------------------------------------------------ */
+/* Mission content                                                     */
+/* ------------------------------------------------------------------ */
+
+/** Flattened view of the simulation used for matching targets and conditions. */
+export interface SimContext {
+  device: DeviceMode;
+  screen: SimScreen;
+  sheet: SimSheet;
+  activeConnectorId: string | null;
+  windsorStatus: ConnectorStatus;
+  busy: boolean;
+  lastToolId: string | null;
+  approvalStatus: 'none' | 'pending' | 'approved' | 'rejected';
+}
+
+/** Pick a highlight target based on where the learner currently is. */
+export interface TargetRule {
+  /** `data-sim-id` of the element to spotlight. */
+  id: string;
+  /** Only use this target when every listed key matches the current context. */
+  when?: Partial<SimContext>;
+  /** Short caption shown in the spotlight bubble / pointer demo. */
+  caption?: string;
+}
+
+export type ActionType =
+  | 'click'
+  | 'navigate'
+  | 'type'
+  | 'inspect'
+  | 'decide'
+  | 'quiz'
+  | 'observe';
+
+/** Declarative matcher: event type + a shallow subset of the payload. */
+export interface ExpectRule {
+  event: SimEventType;
+  where?: Record<string, unknown>;
+  /** Optional registered evaluator for free-form input (see evaluators.ts). */
+  evaluator?: string;
+  /** Beats to play when this rule matches — used by `allow` side-paths. */
+  then?: ScenarioBeat[];
+}
+
+export interface QuizOption {
+  id: string;
+  label: string;
+  correct?: boolean;
+  /** Shown when this option is picked — right or wrong. */
+  feedback: string;
+}
+
+export interface DeviceInstruction {
+  /** Imperative, one action. "Tap the + button next to the message box." */
+  instruction: string;
+  target: TargetRule[];
+  /** Optional extra line explaining how this differs on this form factor. */
+  note?: string;
+}
+
+/** A scripted change to the simulation, triggered by mission progress. */
+export interface ScenarioBeat {
+  delay: number;
+  action: SimAction;
+}
+
+export interface MissionStep {
+  id: string;
+  /** "Open Connectors" */
+  title: string;
+  /** One sentence describing the outcome the learner is working toward. */
+  objective: string;
+  actionType: ActionType;
+  /** Which concept card this step teaches (id from data/concepts.ts). */
+  concept?: string;
+  /** Plain-language answer to "why am I doing this?". */
+  why: string;
+  /** Deeper explanation of the mechanics, shown in the WHY drawer. */
+  explanation: string;
+  /** Nudge shown after a wrong attempt / on request. */
+  hint: string;
+  /** Confirmation after the learner gets it right. */
+  successMessage: string;
+  /** What the learner is practising, shown as chips. */
+  learning: SkillId[];
+  xp: number;
+  /** Per-device instruction + highlight target. */
+  devices: Record<DeviceMode, DeviceInstruction>;
+  /** What counts as doing the step. */
+  expect: ExpectRule;
+  /** Quiz payload when actionType === 'quiz'. */
+  quiz?: { prompt: string; options: QuizOption[] };
+  /** Fired into the simulation once the step is completed. */
+  simulationResult?: ScenarioBeat[];
+  /**
+   * Fired when the learner's free-text answer matched the step but failed the
+   * evaluator — lets the simulated assistant ask a clarifying question instead
+   * of silently rejecting the input.
+   */
+  weakResult?: ScenarioBeat[];
+  /**
+   * Events that are legitimate stepping stones toward this step (opening the
+   * menu that contains the real target, for instance). They neither complete
+   * the step nor count as a mistake.
+   */
+  allow?: ExpectRule[];
+  /**
+   * 'auto'   → move on shortly after the success message (default).
+   * 'manual' → hold on a teaching panel until the learner presses Continue.
+   */
+  advance?: 'auto' | 'manual';
+  /** Extra teaching UI in the Guide for this step. */
+  teach?: { kind: 'flow'; nodes: string[] } | { kind: 'callout'; title: string; body: string };
+}
+
+export interface Mission {
+  id: string;
+  order: number;
+  title: string;
+  /** The learner's own words for what they want. Shown as the mission premise. */
+  premise: string;
+  summary: string;
+  goal: string;
+  difficulty: 'Beginner' | 'Intermediate' | 'Advanced';
+  minutes: string;
+  skills: SkillId[];
+  concepts: string[];
+  status: 'available' | 'locked';
+  /** Set for the post-mission challenge run so the UI can frame it differently. */
+  variant?: 'lesson' | 'challenge';
+  /** Reset the simulation to this shape when the mission (re)starts. */
+  initialSim?: Partial<SimState>;
+  steps: MissionStep[];
+  /** Optional follow-up run in CHALLENGE mode. */
+  challengeMissionId?: string;
+  outro?: { headline: string; takeaways: string[] };
+}
+
+/* ------------------------------------------------------------------ */
+/* Concepts                                                            */
+/* ------------------------------------------------------------------ */
+
+export interface Concept {
+  id: string;
+  term: string;
+  short: string;
+  long: string;
+  analogy: string;
+  glyph: string;
+}
+
+/* ------------------------------------------------------------------ */
+/* Engine state                                                        */
+/* ------------------------------------------------------------------ */
+
+export interface StepRecord {
+  stepId: string;
+  attempts: number;
+  wrong: number;
+  usedHint: boolean;
+  usedShowMe: boolean;
+  usedWhy: boolean;
+  xpEarned: number;
+  completed: boolean;
+}
+
+export type EngineStatus = 'briefing' | 'running' | 'complete';
+
+export interface EngineState {
+  missionId: string;
+  status: EngineStatus;
+  stepIndex: number;
+  /** Success ribbon carried into the next step ("✓ Great, you opened Connectors"). */
+  lastSuccess: string | null;
+  /** Feedback after a wrong attempt. */
+  feedback: { tone: 'wrong' | 'hint' | 'info'; text: string } | null;
+  records: Record<string, StepRecord>;
+  revealHint: boolean;
+  revealWhy: boolean;
+  /** Set while the "Show me" pointer demo is playing. */
+  demo: { targetId: string; caption: string; nonce: number } | null;
+  /** Concept cards unlocked during this run. */
+  unlocked: string[];
+  startedAt: number;
+  finishedAt: number | null;
+  quizChoice: string | null;
+  awaitingContinue: boolean;
+}
+
+export interface RunScore {
+  xp: number;
+  maxXp: number;
+  accuracy: number;
+  attempts: number;
+  wrong: number;
+  assists: number;
+  steps: number;
+  seconds: number;
+  rank: 'Gold' | 'Silver' | 'Bronze';
+}
+
+/* ------------------------------------------------------------------ */
+/* Persisted progress                                                  */
+/* ------------------------------------------------------------------ */
+
+export interface Progress {
+  version: 1;
+  xp: number;
+  skills: Record<SkillId, number>;
+  missionsCompleted: string[];
+  challengesCompleted: string[];
+  conceptsUnlocked: string[];
+  totalAttempts: number;
+  totalWrong: number;
+  bestAccuracy: number;
+  runs: { missionId: string; at: number; score: RunScore }[];
+}
