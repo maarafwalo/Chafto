@@ -2,7 +2,47 @@
    Product shell: landing, mission brief, studio frame, results.
    ========================================================================== */
 
-.page { min-height: 100%; }
+.page {
+  min-height: 100%;
+  /* Views replace the whole tree, so scroll anchoring has nothing stable to
+     anchor to and can leave the new page parked on empty space. */
+  overflow-anchor: none;
+}
+
+/* ---------- Crash screen ---------- */
+
+.crash {
+  min-height: 100%;
+  display: grid;
+  place-items: center;
+  padding: clamp(20px, 6vw, 60px);
+  background: var(--bg);
+}
+.crash-card {
+  max-width: 620px;
+  display: grid;
+  gap: 14px;
+  border: 1px solid var(--line);
+  border-radius: var(--radius-l);
+  background: var(--panel);
+  padding: clamp(20px, 4vw, 32px);
+}
+.crash-card .display { font-size: clamp(24px, 5vw, 34px); }
+.crash-detail {
+  font-family: var(--font-mono);
+  font-size: 12px;
+  line-height: 1.6;
+  color: #f0c3ba;
+  background: rgba(226, 112, 95, 0.1);
+  border: 1px solid rgba(226, 112, 95, 0.3);
+  border-radius: var(--radius);
+  padding: 12px 14px;
+  margin: 0;
+  white-space: pre-wrap;
+  word-break: break-word;
+  overflow-x: auto;
+}
+.crash-actions { display: flex; flex-wrap: wrap; gap: 10px; margin-top: 6px; }
 
 .display { font-family: var(--font-display); font-weight: 600; letter-spacing: -0.03em; line-height: 1.05; }
 .display-l { font-size: clamp(30px, 4.6vw, 50px); }

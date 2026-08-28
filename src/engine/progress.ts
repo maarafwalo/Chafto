@@ -16,15 +16,46 @@ export const emptyProgress = (): Progress => ({
   runs: [],
 });
 
+const strArray = (v: unknown, fallback: string[]): string[] =>
+  Array.isArray(v) ? v.filter((x): x is string => typeof x === 'string') : fallback;
+
+const num = (v: unknown, fallback: number): number =>
+  typeof v === 'number' && Number.isFinite(v) ? v : fallback;
+
+/**
+ * Stored progress is untrusted input: it can be from an older shape of the app,
+ * hand-edited, or truncated. Every field is coerced back to its expected type,
+ * because a bad value here would otherwise take down the whole app on load.
+ */
 export function loadProgress(): Progress {
+  const base = emptyProgress();
   try {
     const raw = localStorage.getItem(KEY);
-    if (!raw) return emptyProgress();
-    const parsed = JSON.parse(raw) as Progress;
-    if (parsed?.version !== 1) return emptyProgress();
-    return { ...emptyProgress(), ...parsed, skills: { ...emptyProgress().skills, ...parsed.skills } };
+    if (!raw) return base;
+    const parsed = JSON.parse(raw) as Partial<Progress> | null;
+    if (!parsed || typeof parsed !== 'object' || parsed.version !== 1) return base;
+
+    const skills = { ...base.skills };
+    if (parsed.skills && typeof parsed.skills === 'object') {
+      for (const key of Object.keys(skills) as SkillId[]) {
+        skills[key] = Math.max(0, num(parsed.skills[key], 0));
+      }
+    }
+
+    return {
+      version: 1,
+      xp: Math.max(0, num(parsed.xp, 0)),
+      skills,
+      missionsCompleted: strArray(parsed.missionsCompleted, base.missionsCompleted),
+      challengesCompleted: strArray(parsed.challengesCompleted, base.challengesCompleted),
+      conceptsUnlocked: strArray(parsed.conceptsUnlocked, base.conceptsUnlocked),
+      totalAttempts: Math.max(0, num(parsed.totalAttempts, 0)),
+      totalWrong: Math.max(0, num(parsed.totalWrong, 0)),
+      bestAccuracy: Math.min(1, Math.max(0, num(parsed.bestAccuracy, 0))),
+      runs: Array.isArray(parsed.runs) ? parsed.runs.slice(-20) : [],
+    };
   } catch {
-    return emptyProgress();
+    return base;
   }
 }
 

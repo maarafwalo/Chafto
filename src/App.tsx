@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useState } from 'react';
+import { useCallback, useEffect, useLayoutEffect, useState } from 'react';
 import { Home } from './components/Home';
 import { MissionBrief } from './components/MissionBrief';
 import { Studio, type RunResult } from './components/Studio';
@@ -24,7 +24,22 @@ export default function App() {
   const [runKey, setRunKey] = useState(0);
 
   useEffect(() => saveProgress(progress), [progress]);
-  useEffect(() => window.scrollTo({ top: 0 }), [view]);
+
+  /**
+   * Reset scroll before paint on every view change.
+   *
+   * The home page is far taller than the pages it leads to, so swapping views
+   * from halfway down leaves the browser holding a scroll offset the new page
+   * cannot honour. Chrome's scroll anchoring then adjusts against a node that
+   * has just unmounted, which can land on empty space. useLayoutEffect runs
+   * before paint, and the direct scrollTop writes cover browsers that scroll
+   * the body rather than the document element.
+   */
+  useLayoutEffect(() => {
+    window.scrollTo(0, 0);
+    document.documentElement.scrollTop = 0;
+    if (document.body) document.body.scrollTop = 0;
+  }, [view]);
 
   const mission = missionById(missionId);
 
