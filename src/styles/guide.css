@@ -176,9 +176,11 @@
 .gbtn:hover:not(:disabled) { background: #302a26; border-color: var(--ink-3); }
 .gbtn:disabled { opacity: .4; cursor: not-allowed; }
 .gbtn-primary {
-  grid-column: span 2;
   background: var(--accent); border-color: var(--accent); color: #fff;
 }
+/* Scoped: only the footer's button row is a two-column grid. Left unscoped,
+   this forced a second column onto every container holding a primary button. */
+.guide-actions .gbtn-primary { grid-column: span 2; }
 .gbtn-primary:hover:not(:disabled) { background: #cc6a49; border-color: #cc6a49; }
 .gbtn-primary:disabled { background: var(--panel-2); border-color: var(--line); color: var(--ink-3); opacity: 1; }
 .guide-meter { display: flex; align-items: center; gap: 7px; font-size: 11.5px; color: var(--ink-3); flex-wrap: wrap; }
@@ -222,7 +224,7 @@
 /* Collapsed: one compact row of controls, no meter — the sheet stays short so
    the simulated device keeps the screen. */
 .guide-sheet[data-open='false'] .guide-actions { grid-template-columns: repeat(3, 1fr); }
-.guide-sheet[data-open='false'] .gbtn-primary { grid-column: auto; }
+.guide-sheet[data-open='false'] .guide-actions .gbtn-primary { grid-column: auto; }
 .guide-sheet[data-open='false'] .guide-meter { display: none; }
 
 /* ---------- Optional depth ---------- */
@@ -324,3 +326,27 @@
   font-size: 13px; line-height: 1.5; color: var(--ink-2);
 }
 .plan-num { font-family: var(--font-mono); font-size: 11px; color: var(--accent); }
+
+/* ---------- Simple guide ---------- */
+
+.why-link { justify-self: start; }
+.more {
+  display: grid; gap: 11px;
+  border-top: 1px solid var(--line); padding-top: 12px;
+  animation: ribbonin .2s var(--ease);
+}
+.more-concept { font-size: 12.5px; line-height: 1.55; color: var(--ink-2); }
+.more-concept strong { color: var(--accent); }
+.more .mode-switch { margin-top: 2px; }
+
+/* One-question start */
+.ex { display: grid; gap: 7px; border-top: 1px solid var(--line); padding-top: 12px; margin-top: 4px; }
+.ex .do-label { color: var(--ink-3); }
+.ex-chip {
+  text-align: left; width: 100%;
+  border: 1px solid var(--line); border-radius: 9px;
+  background: transparent; color: var(--ink-2);
+  padding: 9px 11px; font-size: 12.5px; line-height: 1.4; cursor: pointer;
+  transition: border-color .14s var(--ease), color .14s var(--ease), background .14s var(--ease);
+}
+.ex-chip:hover { border-color: var(--accent); color: var(--accent); background: var(--accent-soft); }

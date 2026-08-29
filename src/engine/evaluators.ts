@@ -178,10 +178,12 @@ export function registerEvaluator(id: string, fn: Evaluator): void {
 
 /** Generic "is this a usable instruction?" rubric, tailored to a stated goal. */
 export function makeInstructionEvaluator(outcome: string, sourceName: string | null): Evaluator {
-  const goalWords = outcome
+  // Crude stems, so "campaigns" in the stated goal still matches "campaign".
+  const stems = outcome
     .toLowerCase()
     .split(/[^a-z0-9]+/)
-    .filter((w) => w.length > 4);
+    .filter((w) => w.length > 4)
+    .map((w) => w.slice(0, 5));
 
   return (raw) => {
     const text = raw.toLowerCase().trim();
@@ -190,35 +192,35 @@ export function makeInstructionEvaluator(outcome: string, sourceName: string | n
     const asksForWork = has(text, [
       'analy', 'compare', 'review', 'find', 'search', 'check', 'list', 'summar',
       'draft', 'write', 'create', 'prepare', 'tell me', 'show me', 'which', 'what',
-      'rank', 'explain', 'pull', 'look',
+      'why', 'rank', 'explain', 'pull', 'look', 'stop', 'pause', 'should', 'best',
+      'worst', 'help me', 'get me', 'give me',
     ]);
-    const namesData = sourceName
-      ? has(text, [sourceName.toLowerCase(), 'my ', 'the '])
-      : words >= 6;
-    const echoesGoal = goalWords.length === 0 || goalWords.some((w) => text.includes(w));
-    const longEnough = words >= 5;
+    const echoesGoal = stems.length === 0 || stems.some((st) => text.includes(st));
+    const namesSubject =
+      echoesGoal || (sourceName ? text.includes(sourceName.toLowerCase().split('.')[0]) : false);
+    const longEnough = words >= 4;
 
     const rubric = [
       { label: 'Says what you want done', met: asksForWork },
-      { label: 'Points at the data or subject', met: namesData },
-      { label: 'Matches the outcome you described', met: echoesGoal },
+      { label: 'Points at the right subject', met: namesSubject },
       { label: 'Is a full instruction, not a keyword', met: longEnough },
     ];
     const met = rubric.filter((r) => r.met).length;
-    const ok = asksForWork && longEnough && namesData;
+    // Deliberately forgiving: the step exists to get a real instruction written,
+    // not to make the learner guess a password.
+    const ok = asksForWork && longEnough;
 
-    let hint = 'Say what you want done, and to which data.';
+    let hint = 'Say what you want done, and to what.';
     if (!longEnough) hint = 'Too short. Write it as you would to a colleague who cannot read your mind.';
-    else if (!asksForWork) hint = 'Start with the verb — analyse, find, compare, draft. What should Claude actually do?';
-    else if (!namesData) hint = 'Name what it should work on, so Claude knows which data you mean.';
+    else if (!asksForWork) hint = 'Start with what Claude should do — analyse, find, compare, draft.';
 
     return {
       ok,
       score: met / rubric.length,
       hint,
-      praise: echoesGoal
-        ? 'That matches what you said you wanted, and it is specific enough to be wrong in a way you would notice — which is what makes it correctable.'
-        : 'Clear instruction. Worth checking it still asks for the outcome you described at the start.',
+      praise: namesSubject
+        ? 'That matches what you asked for, and it is specific enough that a wrong answer would be obvious — which is what makes it correctable.'
+        : 'Clear instruction. Worth checking it still asks for the thing you actually wanted.',
       rubric,
     };
   };

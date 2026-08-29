@@ -1,44 +1,36 @@
+import { useState } from 'react';
 import type { MissionEngine } from '../../engine/missionEngine';
-import { LEARNING_MODES, type LearningMode } from '../../engine/types';
+import { LEARNING_MODES, SKILLS, type LearningMode } from '../../engine/types';
 import { conceptById } from '../../data/concepts';
-import { ConceptCard } from './ConceptCard';
 import { FlowDiagram } from './FlowDiagram';
 import { DeepDive } from './DeepDive';
-import { SKILLS } from '../../engine/types';
 
 const MODE_ORDER: LearningMode[] = ['guided', 'practice', 'challenge'];
 
 /**
- * The interactive tutor.
+ * The Guide.
  *
- * Everything it says is derived from engine state — current step, device mode,
- * what the learner has already tried — so it can never fall out of sync with
- * the simulation next to it.
+ * One instruction at a time, and nothing else competing with it. Everything
+ * that explains, teaches or configures sits behind a single "Why?" toggle —
+ * available the moment it is wanted, invisible until then.
  */
 export function GuidePanel({ engine: e }: { engine: MissionEngine }) {
   const { step, engine, mission, device, learningMode } = e;
+  const [more, setMore] = useState(false);
+
   const record = step ? engine.records[step.id] : null;
   const done = !!record?.completed;
   const concept = step?.concept ? conceptById(step.concept) : undefined;
-  const instruction = step ? step.devices[device].instruction : '';
-  const note = step ? step.devices[device].note : undefined;
   const guided = learningMode === 'guided';
-  /**
-   * The artifact is a plain document, as it is in the real product. The teaching
-   * annotation for a selected line belongs here, in the tutor, not inside it.
-   */
   const selected = e.sim.brief.find((f) => f.id === e.sim.openField);
-
-  const xpSoFar = Object.values(engine.records).reduce((a, r) => a + r.xpEarned, 0);
 
   if (!step) {
     return (
       <div className="guide">
         <div className="guide-body scroll">
           <div className="guide-card">
-            <p className="eyebrow">Mission complete</p>
-            <h3 className="guide-title">Nice work.</h3>
-            <p className="guide-obj">Your results are on the right.</p>
+            <h3 className="guide-title">Done.</h3>
+            <p className="guide-obj">Your results are on the way.</p>
           </div>
         </div>
       </div>
@@ -48,12 +40,10 @@ export function GuidePanel({ engine: e }: { engine: MissionEngine }) {
   const primaryLabel = done
     ? engine.awaitingContinue
       ? 'Continue'
-      : 'Next step →'
+      : 'Next →'
     : step.actionType === 'observe'
-      ? 'Finish mission'
+      ? 'Finish'
       : 'Your move';
-
-  const primaryEnabled = done || step.actionType === 'observe';
 
   return (
     <div className="guide">
@@ -62,28 +52,12 @@ export function GuidePanel({ engine: e }: { engine: MissionEngine }) {
           <span className="guide-badge">GUIDE</span>
           <span className="guide-mission">{mission.title}</span>
         </div>
-        <div className="mode-switch" role="tablist" aria-label="Learning mode">
-          {MODE_ORDER.map((m) => (
-            <button
-              key={m}
-              role="tab"
-              aria-selected={learningMode === m}
-              className="mode-btn"
-              onClick={() => e.setLearningMode(m)}
-              title={LEARNING_MODES[m].blurb}
-            >
-              {LEARNING_MODES[m].label}
-            </button>
-          ))}
-        </div>
         <div className="steps-dots" aria-label={`Step ${e.stepIndex + 1} of ${e.totalSteps}`}>
           {mission.steps.map((s, i) => (
             <span
               key={s.id}
               className="dot"
-              data-state={
-                engine.records[s.id]?.completed ? 'done' : i === e.stepIndex ? 'current' : 'todo'
-              }
+              data-state={engine.records[s.id]?.completed ? 'done' : i === e.stepIndex ? 'current' : 'todo'}
             />
           ))}
         </div>
@@ -95,73 +69,21 @@ export function GuidePanel({ engine: e }: { engine: MissionEngine }) {
             <span aria-hidden>✓</span> {engine.lastSuccess}
           </div>
         )}
-        {engine.lastSuccess && !done && e.stepIndex > 0 && (
-          <div className="ribbon ribbon-quiet">
-            <span aria-hidden>✓</span> {engine.lastSuccess}
+        {engine.feedback && (
+          <div className={`ribbon ${engine.feedback.tone === 'wrong' ? 'ribbon-warn' : 'ribbon-hint'}`}>
+            <span aria-hidden>{engine.feedback.tone === 'wrong' ? '↺' : '💡'}</span> {engine.feedback.text}
           </div>
         )}
 
         <div className="guide-card">
           <p className="eyebrow">
             Step {e.stepIndex + 1} of {e.totalSteps}
-            {learningMode !== 'guided' && ` · ${LEARNING_MODES[learningMode].label} mode`}
           </p>
           <h3 className="guide-title">{step.title}</h3>
-          <p className="guide-obj">{step.objective}</p>
 
           <div className="do-block" data-mode={learningMode}>
-            <p className="do-label">{guided ? 'Do this' : 'Your objective'}</p>
-            <p className="do-text">{guided ? instruction : step.objective}</p>
-            {guided && note && <p className="do-note">{note}</p>}
-            {guided && step.realWorld && (
-              <p className="do-real">
-                <span className="do-real-tag">IN THE REAL APP</span>
-                {step.realWorld}
-              </p>
-            )}
-            {!guided && (
-              <p className="do-note">
-                {learningMode === 'practice'
-                  ? 'Work it out first — hints are one tap away.'
-                  : 'No instructions in Challenge mode. Hints unlock if you get stuck.'}
-              </p>
-            )}
+            <p className="do-text">{guided ? step.devices[device].instruction : step.objective}</p>
           </div>
-
-          {selected && (
-            <div className="annot">
-              <p className="do-label">About this line</p>
-              <p className="annot-name">{selected.label}</p>
-              <p className="annot-sub">{selected.value ?? 'Not decided yet'}</p>
-              <div className="annot-block">
-                <span className="annot-k">Why it exists</span>
-                <p>{selected.why}</p>
-              </div>
-              <div className="annot-block">
-                <span className="annot-k">What goes wrong</span>
-                <p className="annot-risk">{selected.risk}</p>
-              </div>
-              {selected.source && (
-                <div className="annot-block">
-                  <span className="annot-k">Where the value came from</span>
-                  <p>{selected.source}</p>
-                </div>
-              )}
-              {selected.status === 'assumed' && (
-                <p className="annot-warn">
-                  Nobody decided this. Claude filled the blank to keep the plan coherent — reasonable,
-                  and exactly why it is labelled rather than hidden.
-                </p>
-              )}
-            </div>
-          )}
-
-          {engine.feedback && (
-            <div className={`ribbon ${engine.feedback.tone === 'wrong' ? 'ribbon-warn' : 'ribbon-hint'}`}>
-              <span aria-hidden>{engine.feedback.tone === 'wrong' ? '↺' : '💡'}</span>{' '}
-              {engine.feedback.text}
-            </div>
-          )}
 
           {step.actionType === 'quiz' && step.quiz && (
             <div className="quiz" data-sim-id="guide-quiz">
@@ -186,86 +108,102 @@ export function GuidePanel({ engine: e }: { engine: MissionEngine }) {
             </div>
           )}
 
-          {done && step.teach?.kind === 'flow' && (
-            <div className="teach">
-              <p className="teach-title">The shape of every agent workflow</p>
-              <FlowDiagram nodes={step.teach.nodes} />
+          <button className="linkish why-link" onClick={() => setMore((m) => !m)}>
+            {more ? 'Less' : 'Why?'}
+          </button>
+
+          {more && (
+            <div className="more">
+              <p className="why-text">{step.why}</p>
+              <p className="why-more">{step.explanation}</p>
+
+              {step.realWorld && (
+                <p className="do-real">
+                  <span className="do-real-tag">IN THE REAL APP</span>
+                  {step.realWorld}
+                </p>
+              )}
+
+              {concept && (
+                <p className="more-concept">
+                  <strong>{concept.term}</strong> — {concept.short}
+                </p>
+              )}
+
+              {step.teach?.kind === 'flow' && <FlowDiagram nodes={step.teach.nodes} />}
+              {step.teach?.kind === 'callout' && (
+                <div className="teach">
+                  <p className="teach-title">{step.teach.title}</p>
+                  <p className="teach-body">{step.teach.body}</p>
+                </div>
+              )}
+
+              {step.deepDive && step.deepDive.length > 0 && <DeepDive items={step.deepDive} />}
+
+              <div className="chips">
+                {step.learning.map((s) => (
+                  <span className="chip" key={s}>
+                    {SKILLS[s].label}
+                  </span>
+                ))}
+              </div>
+
+              <div className="mode-switch" role="tablist" aria-label="How much help">
+                {MODE_ORDER.map((m) => (
+                  <button
+                    key={m}
+                    role="tab"
+                    aria-selected={learningMode === m}
+                    className="mode-btn"
+                    onClick={() => e.setLearningMode(m)}
+                    title={LEARNING_MODES[m].blurb}
+                  >
+                    {LEARNING_MODES[m].label}
+                  </button>
+                ))}
+              </div>
             </div>
           )}
-          {done && step.teach?.kind === 'callout' && (
-            <div className="teach">
-              <p className="teach-title">{step.teach.title}</p>
-              <p className="teach-body">{step.teach.body}</p>
-            </div>
-          )}
-
-          <div className="why-block">
-            <p className="do-label">Why?</p>
-            <p className="why-text">{step.why}</p>
-            {engine.revealWhy && <p className="why-more">{step.explanation}</p>}
-            <button className="linkish" onClick={e.toggleWhy}>
-              {engine.revealWhy ? 'Show less' : 'Tell me more'}
-            </button>
-          </div>
-
-          {step.deepDive && step.deepDive.length > 0 && <DeepDive items={step.deepDive} />}
-
-          <div className="learning">
-            <p className="do-label">You are learning</p>
-            <div className="chips">
-              {step.learning.map((s) => (
-                <span className="chip" key={s}>
-                  {SKILLS[s].label}
-                </span>
-              ))}
-              {concept && <span className="chip chip-accent">{concept.term}</span>}
-            </div>
-          </div>
         </div>
 
-        {concept && (done || guided) && <ConceptCard concept={concept} defaultOpen={done} />}
-
-        {step.actionType === 'observe' && mission.outro && done && (
-          <div className="guide-card">
-            <p className="eyebrow">What you now know</p>
-            <ul className="takeaways">
-              {mission.outro.takeaways.map((t) => (
-                <li key={t}>{t}</li>
-              ))}
-            </ul>
+        {selected && (
+          <div className="annot">
+            <p className="annot-name">{selected.label}</p>
+            <p className="annot-sub">{selected.value ?? 'Not decided yet'}</p>
+            <div className="annot-block">
+              <span className="annot-k">Why it exists</span>
+              <p>{selected.why}</p>
+            </div>
+            <div className="annot-block">
+              <span className="annot-k">What goes wrong</span>
+              <p className="annot-risk">{selected.risk}</p>
+            </div>
           </div>
         )}
       </div>
 
       <footer className="guide-foot">
         <div className="guide-actions">
-          <button
-            className="gbtn"
-            onClick={e.showMe}
-            disabled={done || !e.target || !e.hintAvailable}
-            title="Demonstrates the action without completing it for you"
-          >
-            <span aria-hidden>☞</span> {e.hintAvailable ? 'Show me' : 'Show me (locked)'}
+          <button className="gbtn" onClick={e.showMe} disabled={done || !e.target || !e.hintAvailable}>
+            Show me
           </button>
           <button className="gbtn" onClick={e.askHint} disabled={done || !e.hintAvailable}>
-            <span aria-hidden>💡</span> {e.hintAvailable ? 'Hint' : 'Hint locked'}
+            Hint
           </button>
           <button
             className="gbtn gbtn-primary"
             onClick={e.continueStep}
-            disabled={!primaryEnabled}
+            disabled={!(done || step.actionType === 'observe')}
             data-sim-id="guide-continue"
           >
             {primaryLabel}
           </button>
         </div>
         <div className="guide-meter">
-          <span>{xpSoFar} XP earned</span>
-          <span>·</span>
-          <span>{engine.unlocked.length} concepts</span>
+          <span>{Object.values(engine.records).reduce((a, r) => a + r.xpEarned, 0)} XP</span>
           <span>·</span>
           <button className="linkish" onClick={e.restart}>
-            Restart mission
+            Restart
           </button>
         </div>
       </footer>
