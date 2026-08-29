@@ -32,7 +32,9 @@ export function MissionBrief({
         <button className="tbtn" onClick={onBack}>
           ← Missions
         </button>
-        <span className="topnav-title">Mission {String(mission.order).padStart(2, '0')}</span>
+        <span className="topnav-title">
+          {mission.order === 0 ? 'Your walkthrough' : `Mission ${String(mission.order).padStart(2, '0')}`}
+        </span>
       </nav>
 
       <div className="brief">

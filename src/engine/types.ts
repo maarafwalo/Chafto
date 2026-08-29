@@ -229,7 +229,18 @@ export interface ReviewItem {
 export type ToolResult =
   | { kind: 'campaigns'; rows: CampaignRow[]; note: string }
   | { kind: 'draft'; draft: CampaignDraft }
-  | { kind: 'created'; draft: CampaignDraft; reference: string };
+  | { kind: 'created'; draft: CampaignDraft; reference: string }
+  /** Generic tabular result, so any connector can return something real. */
+  | { kind: 'table'; columns: string[]; rows: string[][]; note: string }
+  /** Generic single-record result — a draft, a row, a prepared action. */
+  | {
+      kind: 'record';
+      title: string;
+      fields: { label: string; value: string }[];
+      note?: string;
+      done?: boolean;
+      reference?: string;
+    };
 
 export type SimMessage =
   | { id: string; role: 'user'; kind: 'text'; text: string }
@@ -554,6 +565,45 @@ export interface Mission {
   /** Optional follow-up run in CHALLENGE mode. */
   challengeMissionId?: string;
   outro?: { headline: string; lede?: string; takeaways: string[] };
+}
+
+/* ------------------------------------------------------------------ */
+/* Intake — what the learner tells the Guide before anything runs      */
+/* ------------------------------------------------------------------ */
+
+export type IntakeGoal = 'analyse' | 'retrieve' | 'create' | 'act' | 'automate';
+export type IntakeStakes = 'readonly' | 'draft' | 'auto';
+
+export interface IntakeQuestion {
+  id: string;
+  /** Short label above the question. */
+  eyebrow: string;
+  prompt: string;
+  /** Why this question is being asked — the Guide teaching as it interviews. */
+  help?: string;
+  kind: 'choice' | 'text';
+  options?: {
+    id: string;
+    label: string;
+    detail: string;
+    /** Shown once picked — what this choice means for the walkthrough. */
+    consequence?: string;
+  }[];
+  placeholder?: string;
+  optional?: boolean;
+}
+
+export interface IntakeAnswers {
+  goal: IntakeGoal;
+  /** Connector id, or 'none' when the data is not in a connected service. */
+  source: string;
+  stakes: IntakeStakes;
+  /** Their own words for a good outcome. */
+  outcome: string;
+  /** Optional hard constraint — becomes a real rule in the walkthrough. */
+  constraint: string;
+  device: DeviceMode;
+  mode: LearningMode;
 }
 
 /* ------------------------------------------------------------------ */

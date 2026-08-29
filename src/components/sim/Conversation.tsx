@@ -1,4 +1,4 @@
-import { useEffect, useRef } from 'react';
+import { Fragment, useEffect, useRef } from 'react';
 import type { ReviewItem, SimEvent, SimMessage, SimState, ToolResult } from '../../engine/types';
 import { connectorById } from '../../data/connectors';
 import { ArtifactCard } from './Artifact';
@@ -36,6 +36,60 @@ function ToolResultView({ result }: { result: ToolResult }) {
           </tbody>
         </table>
         <p className="tbl-note">{result.note}</p>
+      </div>
+    );
+  }
+
+  if (result.kind === 'table') {
+    return (
+      <div>
+        <div className="tool-label">Tool result</div>
+        <div style={{ overflowX: 'auto' }}>
+          <table className="tbl">
+            <thead>
+              <tr>
+                {result.columns.map((c) => (
+                  <th key={c}>{c}</th>
+                ))}
+              </tr>
+            </thead>
+            <tbody>
+              {result.rows.map((row) => (
+                <tr key={row.join('|')}>
+                  {row.map((cell, i) => (
+                    <td key={i}>{cell}</td>
+                  ))}
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+        <p className="tbl-note">{result.note}</p>
+      </div>
+    );
+  }
+
+  if (result.kind === 'record') {
+    return (
+      <div>
+        <div className="tool-label">{result.done ? 'Simulated result' : 'Tool result'}</div>
+        <div className={result.done ? 'receipt' : ''} style={{ marginTop: 6 }}>
+          {result.done && (
+            <div className="receipt-head">
+              <span>✓</span> Done in simulation
+              {result.reference ? ` · ref ${result.reference}` : ''}
+            </div>
+          )}
+          <dl className="draft-grid">
+            {result.fields.map((f) => (
+              <Fragment key={f.label}>
+                <dt>{f.label}</dt>
+                <dd>{f.value}</dd>
+              </Fragment>
+            ))}
+          </dl>
+          {result.note && <p className="tbl-note">{result.note}</p>}
+        </div>
       </div>
     );
   }

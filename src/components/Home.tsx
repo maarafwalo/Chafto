@@ -69,10 +69,12 @@ export function Home({
   progress,
   onStart,
   onOpenMission,
+  onBackToSetup,
 }: {
   progress: Progress;
   onStart: () => void;
   onOpenMission: (missionId: string) => void;
+  onBackToSetup: () => void;
 }) {
   return (
     <div className="page">
@@ -88,6 +90,9 @@ export function Home({
         </div>
         <div className="topnav-right">
           {progress.xp > 0 && <span className="xp-chip">{progress.xp} XP</span>}
+          <button className="btn" onClick={onBackToSetup}>
+            Build my own
+          </button>
           <button className="btn btn-primary" onClick={onStart}>
             Start learning
           </button>
@@ -106,8 +111,11 @@ export function Home({
             work — connectors, tool calls, approvals and all.
           </p>
           <div className="hero-actions">
-            <button className="btn btn-primary btn-lg" onClick={onStart}>
-              Start Learning
+            <button className="btn btn-primary btn-lg" onClick={onBackToSetup}>
+              Tell the Guide what you want →
+            </button>
+            <button className="btn btn-lg" onClick={onStart}>
+              Start Mission 01
             </button>
             <a className="btn btn-ghost btn-lg" href="#missions">
               See the missions

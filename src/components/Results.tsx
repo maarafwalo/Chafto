@@ -12,12 +12,16 @@ export function Results({
   onChallenge,
   onReplay,
   onHome,
+  onCatalog,
 }: {
   result: RunResult;
   progress: Progress;
   onChallenge?: () => void;
   onReplay: () => void;
+  /** Back to the Guide's interview — the front door. */
   onHome: () => void;
+  /** The hand-built mission catalogue. */
+  onCatalog: () => void;
 }) {
   const { score, mission } = result;
   const mins = Math.floor(score.seconds / 60);
@@ -27,7 +31,7 @@ export function Results({
     <div className="page">
       <nav className="topnav">
         <button className="tbtn" onClick={onHome}>
-          ← Missions
+          ← Start something new
         </button>
         <span className="topnav-title">Mission debrief</span>
         <div className="topnav-right">
@@ -114,8 +118,11 @@ export function Results({
           <button className="btn btn-lg" onClick={onReplay}>
             Replay this mission
           </button>
-          <button className="btn btn-ghost btn-lg" onClick={onHome}>
-            Back to missions
+          <button className="btn btn-lg" onClick={onHome}>
+            Build another walkthrough
+          </button>
+          <button className="btn btn-ghost btn-lg" onClick={onCatalog}>
+            Browse ready-made missions
           </button>
         </div>
 

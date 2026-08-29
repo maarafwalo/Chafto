@@ -65,11 +65,14 @@ export function Studio({
     <div className="studio" data-narrow={narrow ? 'true' : 'false'}>
       <header className="studio-top">
         <button className="tbtn" onClick={onExit}>
-          ← Missions
+          {mission.order === 0 ? '← Start over' : '← Missions'}
         </button>
         <div className="studio-title">
           <span className="eyebrow">
-            Mission {String(mission.order).padStart(2, '0')}
+            {/* A composed run has no catalogue number — it is the learner's own. */}
+            {mission.order === 0
+              ? 'Your walkthrough'
+              : `Mission ${String(mission.order).padStart(2, '0')}`}
             {mission.variant === 'challenge' && ' · Challenge'}
           </span>
           <h2>{mission.title}</h2>

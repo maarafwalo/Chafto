@@ -1,16 +1,21 @@
 import { useCallback, useEffect, useLayoutEffect, useState } from 'react';
 import { Home } from './components/Home';
+import { Workspace } from './components/Workspace';
+import { composeMission } from './data/missions/compose';
 import { MissionBrief } from './components/MissionBrief';
 import { Studio, type RunResult } from './components/Studio';
 import { Results } from './components/Results';
 import { missionById } from './data/missions';
 import { applyRun, loadProgress, saveProgress } from './engine/progress';
-import type { DeviceMode, LearningMode, Progress } from './engine/types';
+import type { DeviceMode, IntakeAnswers, LearningMode, Mission, Progress } from './engine/types';
 
-type View = 'home' | 'brief' | 'studio' | 'results';
+type View = 'workspace' | 'home' | 'brief' | 'studio' | 'results';
 
 export default function App() {
-  const [view, setView] = useState<View>('home');
+  // The app opens as Claude plus the Guide, which interviews before it teaches.
+  const [view, setView] = useState<View>('workspace');
+  /** A walkthrough built from the learner's own answers, when they have given any. */
+  const [composed, setComposed] = useState<Mission | null>(null);
   const [missionId, setMissionId] = useState('meta-ads');
   const [device, setDevice] = useState<DeviceMode>(() =>
     // A desktop shell on a 400px screen is unreadable, so start people where
@@ -41,7 +46,18 @@ export default function App() {
     if (document.body) document.body.scrollTop = 0;
   }, [view]);
 
-  const mission = missionById(missionId);
+  const mission = composed && composed.id === missionId ? composed : missionById(missionId);
+
+  const startComposed = useCallback((answers: IntakeAnswers) => {
+    const built = composeMission(answers);
+    setComposed(built);
+    setMissionId(built.id);
+    setDevice(answers.device);
+    setLearningMode(answers.mode);
+    setRunKey((k) => k + 1);
+    setResult(null);
+    setView('studio');
+  }, []);
 
   const openMission = useCallback((id: string) => {
     setMissionId(id);
@@ -71,12 +87,17 @@ export default function App() {
     [],
   );
 
+  if (view === 'workspace') {
+    return <Workspace onReady={startComposed} onCatalog={() => setView('home')} />;
+  }
+
   if (view === 'home' || !mission) {
     return (
       <Home
         progress={progress}
         onStart={() => openMission('meta-ads')}
         onOpenMission={openMission}
+        onBackToSetup={() => setView('workspace')}
       />
     );
   }
@@ -102,7 +123,7 @@ export default function App() {
         mission={mission}
         device={device}
         learningMode={learningMode}
-        onExit={() => setView('home')}
+        onExit={() => setView(composed && mission.id === composed.id ? 'workspace' : 'home')}
         onComplete={handleComplete}
       />
     );
@@ -129,7 +150,8 @@ export default function App() {
           setMissionId(result.mission.id);
           startRun();
         }}
-        onHome={() => setView('home')}
+        onHome={() => setView('workspace')}
+        onCatalog={() => setView('home')}
       />
     );
   }
