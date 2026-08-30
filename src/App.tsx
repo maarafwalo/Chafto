@@ -1,160 +1,63 @@
-import { useCallback, useEffect, useLayoutEffect, useState } from 'react';
-import { Home } from './components/Home';
-import { Workspace } from './components/Workspace';
-import { composeMission } from './data/missions/compose';
-import { MissionBrief } from './components/MissionBrief';
-import { Studio, type RunResult } from './components/Studio';
-import { Results } from './components/Results';
-import { missionById } from './data/missions';
-import { applyRun, loadProgress, saveProgress } from './engine/progress';
-import type { DeviceMode, IntakeAnswers, LearningMode, Mission, Progress } from './engine/types';
+import { useState } from 'react';
+import { metaAdsCourse } from './course/metaAds';
+import { Overview } from './components/course/Overview';
+import { Player } from './components/course/Player';
 
-type View = 'workspace' | 'home' | 'brief' | 'studio' | 'results';
+type View = 'overview' | 'player' | 'done';
 
 export default function App() {
-  // The app opens as Claude plus the Guide, which interviews before it teaches.
-  const [view, setView] = useState<View>('workspace');
-  /** A walkthrough built from the learner's own answers, when they have given any. */
-  const [composed, setComposed] = useState<Mission | null>(null);
-  const [missionId, setMissionId] = useState('meta-ads');
-  const [device, setDevice] = useState<DeviceMode>(() =>
-    // A desktop shell on a 400px screen is unreadable, so start people where
-    // the simulation is comfortable. They can switch at any time.
-    typeof window !== 'undefined' && window.innerWidth < 900 ? 'phone' : 'desktop',
-  );
-  const [learningMode, setLearningMode] = useState<LearningMode>('guided');
-  const [progress, setProgress] = useState<Progress>(() => loadProgress());
-  const [result, setResult] = useState<RunResult | null>(null);
-  /** Bump to force a fresh engine when replaying the same mission. */
+  const [view, setView] = useState<View>('overview');
   const [runKey, setRunKey] = useState(0);
+  const course = metaAdsCourse;
 
-  useEffect(() => saveProgress(progress), [progress]);
-
-  /**
-   * Reset scroll before paint on every view change.
-   *
-   * The home page is far taller than the pages it leads to, so swapping views
-   * from halfway down leaves the browser holding a scroll offset the new page
-   * cannot honour. Chrome's scroll anchoring then adjusts against a node that
-   * has just unmounted, which can land on empty space. useLayoutEffect runs
-   * before paint, and the direct scrollTop writes cover browsers that scroll
-   * the body rather than the document element.
-   */
-  useLayoutEffect(() => {
-    window.scrollTo(0, 0);
-    document.documentElement.scrollTop = 0;
-    if (document.body) document.body.scrollTop = 0;
-  }, [view]);
-
-  const mission = composed && composed.id === missionId ? composed : missionById(missionId);
-
-  const startComposed = useCallback((answers: IntakeAnswers) => {
-    const built = composeMission(answers);
-    setComposed(built);
-    setMissionId(built.id);
-    setDevice(answers.device);
-    setLearningMode(answers.mode);
-    setRunKey((k) => k + 1);
-    setResult(null);
-    setView('studio');
-  }, []);
-
-  const openMission = useCallback((id: string) => {
-    setMissionId(id);
-    setView('brief');
-  }, []);
-
-  const startRun = useCallback(() => {
-    setRunKey((k) => k + 1);
-    setResult(null);
-    setView('studio');
-  }, []);
-
-  const handleComplete = useCallback(
-    (run: RunResult) => {
-      setProgress((prev) =>
-        applyRun(prev, {
-          missionId: run.mission.id,
-          variant: run.mission.variant ?? 'lesson',
-          score: run.score,
-          gains: run.gains,
-          concepts: run.concepts,
-        }),
-      );
-      setResult(run);
-      setView('results');
-    },
-    [],
-  );
-
-  if (view === 'workspace') {
-    return <Workspace onReady={startComposed} onCatalog={() => setView('home')} />;
-  }
-
-  if (view === 'home' || !mission) {
+  if (view === 'player') {
     return (
-      <Home
-        progress={progress}
-        onStart={() => openMission('meta-ads')}
-        onOpenMission={openMission}
-        onBackToSetup={() => setView('workspace')}
+      <Player
+        key={runKey}
+        course={course}
+        onExit={() => setView('overview')}
+        onDone={() => setView('done')}
       />
     );
   }
 
-  if (view === 'brief') {
+  if (view === 'done') {
     return (
-      <MissionBrief
-        mission={mission}
-        device={device}
-        learningMode={learningMode}
-        onDevice={setDevice}
-        onMode={setLearningMode}
-        onStart={startRun}
-        onBack={() => setView('home')}
-      />
-    );
-  }
-
-  if (view === 'studio') {
-    return (
-      <Studio
-        key={`${mission.id}-${runKey}`}
-        mission={mission}
-        device={device}
-        learningMode={learningMode}
-        onExit={() => setView(composed && mission.id === composed.id ? 'workspace' : 'home')}
-        onComplete={handleComplete}
-      />
-    );
-  }
-
-  if (view === 'results' && result) {
-    const challengeId = result.mission.challengeMissionId;
-    return (
-      <Results
-        result={result}
-        progress={progress}
-        onChallenge={
-          challengeId
-            ? () => {
-                setMissionId(challengeId);
-                setLearningMode('challenge');
+      <div className="ov">
+        <div className="ov-inner ov-done">
+          <span className="ov-eyebrow">Finished</span>
+          <h1>{course.done.headline}</h1>
+          <ul className="ov-points">
+            {course.done.points.map((p) => <li key={p}>{p}</li>)}
+          </ul>
+          <p className="ov-note">
+            You can now do this for real. The buttons are in the same places — this was the same
+            path, on the same three websites.
+          </p>
+          <div className="ov-actions">
+            <button
+              className="ov-start"
+              onClick={() => {
                 setRunKey((k) => k + 1);
-                setResult(null);
-                setView('studio');
-              }
-            : undefined
-        }
-        onReplay={() => {
-          setMissionId(result.mission.id);
-          startRun();
-        }}
-        onHome={() => setView('workspace')}
-        onCatalog={() => setView('home')}
-      />
+                setView('player');
+              }}
+            >
+              Run it again
+            </button>
+            <button className="ov-plain" onClick={() => setView('overview')}>Back to the steps</button>
+          </div>
+        </div>
+      </div>
     );
   }
 
-  return null;
+  return (
+    <Overview
+      course={course}
+      onStart={() => {
+        setRunKey((k) => k + 1);
+        setView('player');
+      }}
+    />
+  );
 }

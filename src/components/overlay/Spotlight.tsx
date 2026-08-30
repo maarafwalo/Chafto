@@ -37,12 +37,12 @@ function useTargetRect(targetId: string | null): { target: Rect | null; stage: R
     let alive = true;
     const tick = () => {
       if (!alive) return;
-      const stageEl = document.getElementById('sim-stage');
+      const stageEl = document.getElementById('pl-stage');
       const stage = stageEl ? toRect(stageEl.getBoundingClientRect()) : null;
 
       let target: Rect | null = null;
       if (targetId) {
-        const el = document.querySelector<HTMLElement>(`[data-sim-id="${CSS.escape(targetId)}"]`);
+        const el = document.querySelector<HTMLElement>(`[data-id="${CSS.escape(targetId)}"]`);
         if (el) {
           const r = toRect(el.getBoundingClientRect());
           // Ignore a target scrolled out of the visible device area.

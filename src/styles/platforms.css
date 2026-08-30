@@ -1,0 +1,195 @@
+/* ==========================================================================
+   The simulated websites. Each one is light and looks like itself; the course
+   shell around them stays dark, so it always reads as "a site inside a course".
+   ========================================================================== */
+
+.pf {
+  flex: 1; min-width: 0; min-height: 0; display: flex; flex-direction: column;
+  background: #fff; color: #1c1917; overflow-y: auto;
+  font-size: 14px;
+}
+.pf-app { flex-direction: row; overflow: hidden; }
+.mono { font-family: var(--font-mono); }
+.pf .scroll { overflow-y: auto; }
+
+/* ---------- shared bits ---------- */
+
+.pf-logo {
+  width: 26px; height: 26px; border-radius: 7px; flex: 0 0 auto;
+  display: grid; place-items: center; color: #fff; font-weight: 700; font-size: 14px;
+}
+.pf-btn {
+  border: 1px solid #d6cfc4; background: #fff; color: #1c1917;
+  border-radius: 9px; padding: 9px 16px; font-size: 14px; font-weight: 550; cursor: pointer;
+  transition: background .14s var(--ease), border-color .14s var(--ease);
+}
+.pf-btn:hover { background: #f6f3ef; }
+.pf-btn:disabled { opacity: .45; cursor: not-allowed; }
+.pf-btn-primary { background: #E07856; border-color: #E07856; color: #fff; }
+.pf-btn-primary:hover { background: #cc6a49; }
+.pf-btn-meta { background: #0866FF; border-color: #0866FF; color: #fff; }
+.pf-btn-meta:hover { background: #0757d8; }
+.pf-btn-lg { padding: 13px 24px; font-size: 15px; }
+.pf-btn-block { width: 100%; }
+.pf-badge {
+  width: 34px; height: 34px; border-radius: 9px; flex: 0 0 auto;
+  display: grid; place-items: center; color: #fff; font-weight: 700; font-size: 15px;
+}
+.pf-badge-sm { width: 24px; height: 24px; font-size: 11px; border-radius: 7px; }
+.pf-pill { border-radius: 999px; padding: 3px 10px; font-size: 11.5px; font-weight: 700; border: 1px solid #ddd6cb; color: #6b6259; }
+.pf-pill-ok { background: #eaf6ee; border-color: #cbe6d4; color: #2f7d55; }
+.pf-sub { font-size: 13.5px; color: #6b6259; line-height: 1.55; margin-top: 6px; }
+.pf-note { font-size: 12px; color: #9a9086; margin-top: 10px; line-height: 1.5; }
+.pf-empty { border: 1px dashed #d6cfc4; border-radius: 10px; padding: 20px; text-align: center; color: #9a9086; font-size: 13.5px; }
+.pf h2 { font-size: 20px; letter-spacing: -.02em; }
+
+.pf-field { display: grid; gap: 6px; margin-bottom: 14px; }
+.pf-field span { font-size: 12.5px; font-weight: 600; color: #6b6259; }
+.pf-field input {
+  border: 1px solid #d6cfc4; border-radius: 9px; padding: 11px 12px; font-size: 14px;
+  background: #fff; color: #1c1917;
+}
+.pf-field input:focus { outline: none; border-color: #E07856; box-shadow: 0 0 0 3px #fbeee8; }
+
+.pf-row { display: flex; align-items: center; gap: 12px; border: 1px solid #e5ddd2; border-radius: 11px; padding: 12px; margin-bottom: 14px; }
+.pf-row-ok { border-color: #cbe6d4; background: #f7fcf9; }
+.pf-row strong { display: block; font-size: 14px; }
+.pf-row small { display: block; font-size: 12px; color: #6b6259; }
+.pf-row .pf-pill { margin-left: auto; }
+.pf-warn { border: 1px solid #ecd7b4; background: #fffaf1; color: #9a6a24; border-radius: 9px; padding: 11px 13px; font-size: 12.5px; line-height: 1.5; margin-top: 14px; }
+.pf-warn-good { border-color: #cbe6d4; background: #f4faf6; color: #2f6b46; }
+
+/* ---------- Windsor ---------- */
+
+.pf-nav { display: flex; align-items: center; gap: 10px; padding: 14px 22px; border-bottom: 1px solid #eee8e0; }
+.pf-links { margin-left: auto; display: flex; gap: 18px; font-size: 13.5px; color: #6b6259; }
+.pf-hero { padding: clamp(28px, 6vw, 60px) 22px; max-width: 620px; }
+.pf-hero h1 { font-size: clamp(24px, 4vw, 34px); letter-spacing: -.02em; line-height: 1.15; }
+.pf-hero p { font-size: 15px; color: #6b6259; margin: 14px 0 24px; line-height: 1.6; }
+.pf-logos { display: flex; flex-wrap: wrap; gap: 16px; margin-top: 32px; font-size: 12px; color: #9a9086; }
+.pf-form { max-width: 380px; padding: clamp(24px, 5vw, 48px) 22px; }
+.pf-form h2 { margin-bottom: 20px; }
+
+.pf-side { width: 200px; flex: 0 0 200px; background: #faf7f3; border-right: 1px solid #eee8e0; padding: 16px 10px; display: flex; flex-direction: column; gap: 3px; }
+.pf-side-brand { display: flex; align-items: center; gap: 9px; font-weight: 650; font-size: 14px; padding: 0 8px 16px; }
+.pf-side-item {
+  border: 0; background: transparent; text-align: left; border-radius: 8px;
+  padding: 9px 10px; font-size: 13.5px; color: #6b6259; cursor: pointer;
+}
+.pf-side-item:hover { background: rgba(0,0,0,.04); color: #1c1917; }
+.pf-side-item[aria-current='true'] { background: #fff; color: #1c1917; font-weight: 600; box-shadow: 0 1px 2px rgba(0,0,0,.06); }
+.pf-main { flex: 1; min-width: 0; padding: 24px; overflow-y: auto; }
+.pf-section-head { font-size: 11px; font-weight: 700; letter-spacing: .1em; text-transform: uppercase; color: #9a9086; margin: 24px 0 10px; }
+.pf-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(190px, 1fr)); gap: 9px; margin-bottom: 18px; }
+.pf-card {
+  display: flex; align-items: center; gap: 11px; text-align: left;
+  border: 1px solid #e5ddd2; border-radius: 11px; background: #fff; padding: 11px; cursor: pointer;
+}
+.pf-card:hover { border-color: #E07856; }
+.pf-card strong { display: block; font-size: 13.5px; }
+.pf-card small { display: block; font-size: 11.5px; color: #9a9086; }
+
+.pf-urlbox { display: flex; align-items: center; gap: 10px; border: 1px solid #e5ddd2; border-radius: 10px; background: #faf7f3; padding: 10px 12px; margin-top: 16px; }
+.pf-url { flex: 1; min-width: 0; font-size: 12px; overflow-x: auto; white-space: nowrap; }
+
+/* ---------- Meta ---------- */
+
+.pf-meta { background: #f0f2f5; }
+.pf-meta-top { display: flex; align-items: center; gap: 10px; padding: 12px 20px; background: #fff; border-bottom: 1px solid #dfe3e8; font-size: 15px; }
+.pf-consent {
+  max-width: 420px; margin: clamp(18px, 5vw, 44px) auto; background: #fff;
+  border-radius: 12px; padding: 26px; box-shadow: 0 2px 12px rgba(0,0,0,.08);
+}
+.pf-consent h2 { font-size: 20px; }
+.pf-consent .pf-btn { margin-top: 12px; }
+.pf-avatar { width: 56px; height: 56px; border-radius: 50%; background: #0866FF; color: #fff; display: grid; place-items: center; font-size: 22px; font-weight: 700; margin-bottom: 16px; }
+.pf-choice {
+  display: flex; align-items: center; gap: 12px; width: 100%; text-align: left;
+  border: 1px solid #dfe3e8; border-radius: 10px; background: #fff; padding: 13px; margin-top: 10px; cursor: pointer;
+}
+.pf-choice:hover { border-color: #0866FF; background: #f5f9ff; }
+.pf-choice strong { display: block; font-size: 14px; }
+.pf-choice small { display: block; font-size: 12px; color: #65676b; }
+.pf-radio { width: 18px; height: 18px; border-radius: 50%; border: 2px solid #bcc0c4; flex: 0 0 auto; }
+.pf-perm { display: flex; align-items: center; gap: 12px; border-top: 1px solid #eef0f2; padding: 14px 0; }
+.pf-perm strong { display: block; font-size: 14px; }
+.pf-perm small { display: block; font-size: 12px; color: #65676b; }
+.pf-perm-off { opacity: .55; }
+.pf-perm-tick { color: #0866FF; font-weight: 700; }
+.pf-switch { margin-left: auto; width: 36px; height: 21px; border-radius: 999px; background: #ccd0d5; position: relative; flex: 0 0 auto; }
+.pf-switch::after { content: ''; position: absolute; top: 2px; left: 2px; width: 17px; height: 17px; border-radius: 50%; background: #fff; transition: transform .16s var(--ease); }
+.pf-switch-on { background: #0866FF; }
+.pf-switch-on::after { transform: translateX(15px); }
+
+/* ---------- Claude ---------- */
+
+.pf-claude { background: #faf7f3; }
+.pf-side-claude { background: #f2ede6; }
+.pf-side-new { border: 1px solid #d6cfc4; background: #fff; border-radius: 9px; padding: 9px 10px; font-size: 13.5px; color: #C85F3C; font-weight: 600; cursor: pointer; text-align: left; margin-bottom: 6px; }
+.pf-side-label { font-size: 10px; font-weight: 700; letter-spacing: .1em; text-transform: uppercase; color: #9a9086; padding: 12px 10px 4px; }
+.pf-side-foot { margin-top: auto; }
+.pf-account { display: flex; align-items: center; gap: 9px; width: 100%; border: 0; background: transparent; border-radius: 9px; padding: 8px; cursor: pointer; text-align: left; }
+.pf-account:hover { background: rgba(0,0,0,.04); }
+.pf-avatar-sm { width: 26px; height: 26px; border-radius: 50%; background: #ddd3c6; display: grid; place-items: center; font-size: 12px; font-weight: 700; color: #6b6259; }
+.pf-account strong { display: block; font-size: 13px; }
+.pf-account small { display: block; font-size: 11px; color: #9a9086; }
+.pf-main-claude { display: flex; flex-direction: column; padding: 0; background: #fff; }
+.pf-pad { padding: 24px; }
+.pf-pad .pf-btn { margin-top: 16px; }
+
+.pf-chat { flex: 1; min-height: 0; overflow-y: auto; padding: 20px; display: flex; flex-direction: column; gap: 16px; }
+.pf-user { align-self: flex-end; max-width: 80%; background: #C85F3C; color: #fff; border-radius: 14px 14px 4px 14px; padding: 10px 14px; font-size: 14px; }
+.pf-ai { display: flex; gap: 10px; }
+.pf-ai-mark { width: 24px; height: 24px; flex: 0 0 auto; border-radius: 7px; background: #fbeee8; color: #C85F3C; display: grid; place-items: center; font-size: 12px; }
+.pf-ai p { font-size: 14px; line-height: 1.55; }
+.pf-evidence { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 9px; }
+.pf-evidence span { font-family: var(--font-mono); font-size: 11px; background: #f4f7f2; border: 1px solid #d9e6d6; color: #3d6b4c; border-radius: 6px; padding: 2px 7px; }
+.pf-dots { display: flex; gap: 4px; align-items: center; height: 22px; }
+.pf-dots i { width: 5px; height: 5px; border-radius: 50%; background: #b3a99d; animation: blink 1.1s infinite; }
+.pf-dots i:nth-child(2) { animation-delay: .18s; }
+.pf-dots i:nth-child(3) { animation-delay: .36s; }
+@keyframes blink { 0%, 60%, 100% { opacity: .25; } 30% { opacity: 1; } }
+
+.pf-perm-card { border: 1px solid #d8d2ea; background: #fdfcff; border-radius: 12px; padding: 14px; }
+.pf-perm-card strong { font-size: 14px; display: block; }
+.pf-perm-card code { display: block; font-family: var(--font-mono); font-size: 12px; background: #f5f2ed; border: 1px solid #e5ddd2; border-radius: 7px; padding: 8px 10px; margin: 10px 0; word-break: break-all; }
+.pf-perm-card p { font-size: 12.5px; color: #6b6259; }
+.pf-perm-actions { display: flex; gap: 8px; margin-top: 12px; flex-wrap: wrap; }
+
+.pf-tool { border: 1px solid #d6cfc4; border-radius: 11px; background: #fcfbf9; overflow: hidden; }
+.pf-tool-head { display: flex; align-items: center; gap: 9px; width: 100%; border: 0; background: transparent; padding: 10px 12px; cursor: pointer; text-align: left; font-size: 12px; }
+.pf-tool-head:hover { background: rgba(0,0,0,.03); }
+.pf-tool-tag { font-size: 9px; font-weight: 800; letter-spacing: .1em; color: #6c5ce0; background: #efedfd; border: 1px solid #ddd8fa; border-radius: 4px; padding: 2px 5px; }
+.pf-tool-state { margin-left: auto; color: #9a9086; }
+.pf-tool-body { border-top: 1px solid #eee8e0; padding: 12px; }
+.pf-code { font-family: var(--font-mono); font-size: 11.5px; background: #f5f2ed; border: 1px solid #e5ddd2; border-radius: 8px; padding: 9px 11px; margin: 0 0 12px; white-space: pre-wrap; color: #4a4139; }
+.pf-table { width: 100%; border-collapse: collapse; font-size: 12.5px; }
+.pf-table th { text-align: right; font-size: 10px; letter-spacing: .06em; text-transform: uppercase; color: #9a9086; padding: 5px 6px; border-bottom: 1px solid #eee8e0; }
+.pf-table th:first-child, .pf-table td:first-child { text-align: left; }
+.pf-table td { padding: 7px 6px; border-bottom: 1px solid #f4f0e9; text-align: right; font-variant-numeric: tabular-nums; }
+
+.pf-composer-wrap { position: relative; flex: 0 0 auto; padding: 14px 20px 18px; border-top: 1px solid #eee8e0; }
+.pf-composer { border: 1px solid #d6cfc4; border-radius: 15px; background: #fff; padding: 10px 10px 8px; }
+.pf-composer:focus-within { border-color: #C85F3C; box-shadow: 0 0 0 3px #fbeee8; }
+.pf-composer textarea { width: 100%; border: 0; outline: 0; resize: none; font-size: 14px; line-height: 1.5; background: transparent; color: #1c1917; }
+.pf-composer-row { display: flex; align-items: center; gap: 8px; margin-top: 6px; }
+.pf-chip { display: inline-flex; align-items: center; gap: 6px; border: 1px solid #e5ddd2; background: transparent; border-radius: 8px; padding: 6px 10px; font-size: 12px; color: #6b6259; cursor: pointer; }
+.pf-chip:hover { background: #f6f3ef; color: #1c1917; }
+.pf-chip b { background: #C85F3C; color: #fff; border-radius: 999px; font-size: 10px; padding: 1px 6px; }
+.pf-send { width: 30px; height: 30px; border-radius: 50%; border: 0; background: #C85F3C; color: #fff; font-size: 15px; cursor: pointer; }
+.pf-send:disabled { background: #e9e2d9; color: #b3a99d; cursor: not-allowed; }
+.pf-menu { position: absolute; bottom: calc(100% - 6px); left: 20px; min-width: 250px; background: #fff; border: 1px solid #d6cfc4; border-radius: 12px; box-shadow: 0 14px 40px -14px rgba(0,0,0,.4); padding: 7px; }
+.pf-menu-label { font-size: 9.5px; font-weight: 800; letter-spacing: .1em; text-transform: uppercase; color: #9a9086; padding: 7px 9px 4px; }
+.pf-menu-row { display: flex; align-items: center; gap: 10px; width: 100%; border: 0; background: transparent; border-radius: 8px; padding: 9px; cursor: pointer; text-align: left; font-size: 13px; }
+.pf-menu-row:hover { background: #f6f3ef; }
+.pf-menu-row small { display: block; font-size: 11px; color: #9a9086; }
+.pf-menu-row .pf-switch { width: 32px; height: 19px; }
+.pf-menu-row .pf-switch::after { width: 15px; height: 15px; }
+.pf-menu-row .pf-switch-on { background: #2f7d55; }
+.pf-menu-row .pf-switch-on::after { transform: translateX(13px); }
+.pf-menu-empty { font-size: 12px; color: #9a9086; padding: 4px 9px 8px; }
+
+@media (max-width: 900px) {
+  .pf-side { width: 150px; flex-basis: 150px; }
+  .pf-main { padding: 16px; }
+}
